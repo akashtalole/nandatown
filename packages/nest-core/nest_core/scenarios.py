@@ -59,3 +59,15 @@ def _try_load_builtin(name: str) -> None:
         from nest_core.scenarios_builtin.voting import voting_factory
 
         register_scenario("voting", voting_factory)
+    elif name == "consensus":
+        from nest_core.scenarios_builtin.consensus import consensus_factory
+
+        register_scenario("consensus", consensus_factory)
+    elif name == "supply_chain":
+        from nest_core.scenarios_builtin.supply_chain import supply_chain_factory
+
+        register_scenario("supply_chain", supply_chain_factory)
+    elif name == "reputation":
+        from nest_core.scenarios_builtin.reputation import reputation_factory
+
+        register_scenario("reputation", reputation_factory)
