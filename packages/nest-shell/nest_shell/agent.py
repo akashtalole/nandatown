@@ -113,9 +113,7 @@ class ShellAgent(StateMachineAgent):
         if template is not None:
             self._system_prompt = template.system_prompt
         else:
-            self._system_prompt = (system_prompt or _DEFAULT_SYSTEM_PROMPT).format(
-                role=role
-            )
+            self._system_prompt = (system_prompt or _DEFAULT_SYSTEM_PROMPT).format(role=role)
         self._history: list[dict[str, str]] = [
             {"role": "system", "content": self._system_prompt},
         ]

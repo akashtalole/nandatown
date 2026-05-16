@@ -18,7 +18,7 @@ from nest_core.scenario import ScenarioConfig
 from nest_core.sim.agent import StateMachineAgent
 from nest_core.types import AgentId
 
-from nest_shell.agent import ShellAgent, _resolve_template
+from nest_shell.agent import ShellAgent, _resolve_template  # pyright: ignore[reportPrivateUsage]
 from nest_shell.llm import LLMBackend
 
 _AUCTION_AUCTIONEER_PROMPT = """\
@@ -592,6 +592,7 @@ def shell_reputation_factory(
                 malicious_count = role.count
 
     observer_id = AgentId("observer-0")
+    tpl_obs = _resolve_template(config, "observer", "reputation")
     agents[observer_id] = ShellAgent(
         agent_id=observer_id,
         role="observer",
@@ -599,10 +600,12 @@ def shell_reputation_factory(
         system_prompt=_REPUTATION_OBSERVER_PROMPT,
         num_sellers=honest_count + malicious_count,
         rounds=rounds,
+        template=tpl_obs,
     )
 
     for i in range(honest_count):
         aid = AgentId(f"honest-{i}")
+        tpl_honest = _resolve_template(config, "honest", "reputation")
         agents[aid] = ShellAgent(
             agent_id=aid,
             role="honest",
@@ -610,10 +613,12 @@ def shell_reputation_factory(
             system_prompt=_REPUTATION_HONEST_PROMPT,
             num_sellers=honest_count + malicious_count,
             rounds=rounds,
+            template=tpl_honest,
         )
 
     for i in range(malicious_count):
         aid = AgentId(f"malicious-{i}")
+        tpl_mal = _resolve_template(config, "malicious", "reputation")
         agents[aid] = ShellAgent(
             agent_id=aid,
             role="malicious",
@@ -621,6 +626,7 @@ def shell_reputation_factory(
             system_prompt=_REPUTATION_MALICIOUS_PROMPT,
             num_sellers=honest_count + malicious_count,
             rounds=rounds,
+            template=tpl_mal,
         )
 
     return agents

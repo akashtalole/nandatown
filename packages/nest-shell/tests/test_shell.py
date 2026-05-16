@@ -92,9 +92,7 @@ class TestOpenAIBackend:
         assert isinstance(backend, LLMBackend)
 
     def test_custom_params(self) -> None:
-        backend = OpenAIBackend(
-            model="gpt-4o", temperature=0.5, max_tokens=512, api_key="test-key"
-        )
+        backend = OpenAIBackend(model="gpt-4o", temperature=0.5, max_tokens=512, api_key="test-key")
         assert isinstance(backend, LLMBackend)
 
 

@@ -177,3 +177,66 @@ class TestPluginsList:
         result = runner.invoke(app, ["plugins", "list", "payments"])
         assert result.exit_code == 0
         assert "prepaid_credits" in result.output
+
+
+class TestTemplatesList:
+    def test_list_shows_builtins(self) -> None:
+        result = runner.invoke(app, ["templates", "list"])
+        assert result.exit_code == 0
+        assert "marketplace-buyer" in result.output
+        assert "auction-auctioneer" in result.output
+
+    def test_show_template(self) -> None:
+        result = runner.invoke(app, ["templates", "show", "marketplace-buyer"])
+        assert result.exit_code == 0
+        assert "marketplace-buyer" in result.output
+        assert "System prompt:" in result.output
+
+    def test_show_not_found(self) -> None:
+        result = runner.invoke(app, ["templates", "show", "nonexistent"])
+        assert result.exit_code == 1
+        assert "not found" in result.output
+
+    def test_create_template(self, tmp_path: Path) -> None:
+        import os
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(tmp_path)
+            result = runner.invoke(
+                app,
+                [
+                    "templates",
+                    "create",
+                    "test-tpl",
+                    "--prompt",
+                    "Be a test agent.",
+                ],
+            )
+            assert result.exit_code == 0
+            assert "Created template" in result.output
+        finally:
+            os.chdir(old_cwd)
+
+    def test_duplicate_template(self, tmp_path: Path) -> None:
+        import os
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(tmp_path)
+            result = runner.invoke(
+                app,
+                ["templates", "duplicate", "marketplace-buyer", "my-buyer"],
+            )
+            assert result.exit_code == 0
+            assert "Duplicated" in result.output
+        finally:
+            os.chdir(old_cwd)
+
+    def test_duplicate_not_found(self) -> None:
+        result = runner.invoke(
+            app,
+            ["templates", "duplicate", "nonexistent", "copy"],
+        )
+        assert result.exit_code == 1
+        assert "not found" in result.output
