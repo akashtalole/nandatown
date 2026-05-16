@@ -3,7 +3,7 @@
 name = "nest-mocks"
 version = "0.1.0"
 description = "NEST mocks: in-memory mock services for testing"
-readme = "../../README.md"
+readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 classifiers = [

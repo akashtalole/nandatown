@@ -3,7 +3,7 @@
 name = "nest-cli"
 version = "0.1.0"
 description = "NEST CLI: nest run, nest bench, nest inspect, and more"
-readme = "../../README.md"
+readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 classifiers = [
@@ -16,10 +16,14 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "nest-core",
-    "nest-sdk",
+    "nest-core>=0.1.0",
+    "nest-sdk>=0.1.0",
+    "nest-plugins-reference>=0.1.0",
     "typer>=0.12",
 ]
+
+[project.optional-dependencies]
+llm = ["nest-shell[all]>=0.1.0"]
 
 [project.scripts]
 nest = "nest_cli.main:app"

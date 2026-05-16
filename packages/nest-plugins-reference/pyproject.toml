@@ -3,7 +3,7 @@
 name = "nest-plugins-reference"
 version = "0.1.0"
 description = "NEST reference plugins: default implementations for all 12 layers"
-readme = "../../README.md"
+readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 classifiers = [

@@ -519,49 +519,41 @@ export default function DocsPage() {
           {/*  Installation                                       */}
           {/* ================================================== */}
           <Section id="installation" title="Installation">
-            <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-5 py-3">
-              <p className="text-sm text-amber-800">
-                <strong>Note:</strong> NEST is not yet published to PyPI. Install
-                from the Git repository as shown below.
-              </p>
-            </div>
+            <h3 className="mb-3 text-lg font-semibold text-warm-800">
+              Quick install (from PyPI)
+            </h3>
+            <CodeBlock>pip install nest-cli</CodeBlock>
+            <p className="mb-6 text-sm text-warm-600">
+              This pulls in all core dependencies (nest-core, nest-sdk,
+              nest-plugins-reference). Requires <strong>Python 3.12+</strong>.
+            </p>
 
             <h3 className="mb-3 text-lg font-semibold text-warm-800">
-              Prerequisites
+              Or: install from source (development)
             </h3>
-            <ul className="mb-6 list-inside list-disc space-y-1 text-base text-warm-600">
+            <ul className="mb-4 list-inside list-disc space-y-1 text-base text-warm-600">
               <li>
                 <strong>Python 3.12+</strong> &mdash; check with{' '}
                 <InlineCode>python --version</InlineCode>
               </li>
               <li>
-                <strong>uv</strong> (recommended) or <strong>pip</strong> &mdash;{' '}
+                <strong>uv</strong> (recommended) &mdash;{' '}
                 <InlineCode>pip install uv</InlineCode>
               </li>
             </ul>
-
-            <h3 className="mb-3 text-lg font-semibold text-warm-800">
-              Clone and install
-            </h3>
             <CodeBlock>
 {`git clone https://github.com/mariagorskikh/nest.git
 cd nest
 uv sync`}
             </CodeBlock>
 
-            <p className="mb-4 text-sm text-warm-600">
-              This installs all 7 workspace packages (nest-core, nest-cli,
-              nest-shell, nest-sdk, nest-mocks, nest-plugins-reference,
-              nest-scenarios) in a single virtual environment.
-            </p>
-
             <h3 className="mb-3 text-lg font-semibold text-warm-800">
               Verify your installation
             </h3>
-            <CodeBlock>uv run nest doctor</CodeBlock>
+            <CodeBlock>nest doctor</CodeBlock>
 
             <TerminalBlock>
-{`$ uv run nest doctor
+{`$ nest doctor
 NEST CLI v0.1.0
 Python ......... 3.12.4  ok
 Runtime ........ ok       ok
@@ -1045,9 +1037,9 @@ my_decay = "my_trust.plugin:DecayTrust"`}
                 question="Can I pip install this?"
                 answer={
                   <p>
-                    Not yet. NEST is not published to PyPI. Clone the repo and
-                    run <InlineCode>uv sync</InlineCode> to install locally.
-                    PyPI publishing is on the roadmap.
+                    Yes! Run <InlineCode>pip install nest-cli</InlineCode> and
+                    you&apos;re ready to go. All core packages (nest-core, nest-sdk,
+                    nest-plugins-reference) are pulled in automatically.
                   </p>
                 }
               />
