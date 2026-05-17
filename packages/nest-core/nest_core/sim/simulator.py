@@ -95,6 +95,7 @@ class _SimAgentContext:
                     "kind": "send",
                     "to": str(to),
                     "size": len(payload),
+                    "msg": payload.decode("utf-8", errors="replace"),
                     "corr": str(cid),
                 }
             )
@@ -109,6 +110,7 @@ class _SimAgentContext:
                     "agent": str(self._agent_id),
                     "kind": "broadcast",
                     "size": len(payload),
+                    "msg": payload.decode("utf-8", errors="replace"),
                     "corr": str(cid),
                 }
             )
@@ -315,6 +317,7 @@ class Simulator:
                             "kind": "dropped",
                             "from": str(event.target_id),
                             "size": len(event.payload),
+                            "msg": event.payload.decode("utf-8", errors="replace"),
                         }
                         if event.correlation_id is not None:
                             drop_rec["corr"] = str(event.correlation_id)
@@ -329,6 +332,7 @@ class Simulator:
                         "kind": "receive",
                         "from": str(event.target_id),
                         "size": len(event.payload),
+                        "msg": event.payload.decode("utf-8", errors="replace"),
                     }
                     if event.correlation_id is not None:
                         rec["corr"] = str(event.correlation_id)

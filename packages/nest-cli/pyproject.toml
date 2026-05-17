@@ -2,7 +2,7 @@
 [project]
 name = "nest-cli"
 version = "0.1.0"
-description = "NEST CLI: nest run, nest bench, nest inspect, and more"
+description = "NEST CLI (deprecated — use nest-core instead)"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"

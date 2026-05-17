@@ -598,7 +598,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."`}
                   Run the scenario
                 </h3>
               </div>
-              <CodeBlock>uv run nest run scenarios/marketplace.yaml</CodeBlock>
+              <CodeBlock>nest run scenarios/marketplace.yaml</CodeBlock>
               <p className="mt-2 text-sm text-warm-500">
                 This creates the agents, runs the simulation, and writes
                 the trace to <InlineCode>traces/marketplace.jsonl</InlineCode>.
@@ -614,7 +614,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."`}
                   Inspect the trace
                 </h3>
               </div>
-              <CodeBlock>uv run nest inspect traces/marketplace.jsonl</CodeBlock>
+              <CodeBlock>nest inspect traces/marketplace.jsonl</CodeBlock>
               <p className="mt-2 text-sm text-warm-500">
                 Shows a summary of every event: sends, receives, drops,
                 per-agent stats, and timing.
@@ -630,7 +630,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."`}
                   Generate an HTML report
                 </h3>
               </div>
-              <CodeBlock>uv run nest report traces/marketplace.jsonl -o report.html</CodeBlock>
+              <CodeBlock>nest report traces/marketplace.jsonl -o report.html</CodeBlock>
               <p className="mt-2 text-sm text-warm-500">
                 Produces an HTML page with delivery rate, deal rate, latency,
                 throughput, per-agent breakdown, and event summary.
@@ -899,10 +899,10 @@ system_prompt: |
               CLI commands
             </h3>
             <CodeBlock>
-{`uv run nest templates list              # List all templates
-uv run nest templates show <name>       # View a template
-uv run nest templates create <name>     # Create from scratch
-uv run nest templates duplicate <src> <dest>  # Copy and modify`}
+{`nest templates list              # List all templates
+nest templates show <name>       # View a template
+nest templates create <name>     # Create from scratch
+nest templates duplicate <src> <dest>  # Copy and modify`}
             </CodeBlock>
           </Section>
 
@@ -983,9 +983,9 @@ my_decay = "my_trust.plugin:DecayTrust"`}
           {/* ================================================== */}
           <Section id="cli" title="CLI Reference">
             <p className="mb-6 text-base leading-relaxed text-warm-600">
-              All commands are run via <InlineCode>uv run nest</InlineCode> from
-              the repo root (or just <InlineCode>nest</InlineCode> if
-              installed globally).
+              After installing with{' '}
+              <InlineCode>pip install &quot;nest-core[plugins]&quot;</InlineCode>,
+              all commands are available via the <InlineCode>nest</InlineCode> CLI.
             </p>
 
             <div className="overflow-x-auto rounded-xl border border-warm-200">
@@ -1008,6 +1008,7 @@ my_decay = "my_trust.plugin:DecayTrust"`}
                     ['nest init <name>', 'Scaffold a new scenario YAML'],
                     ['nest doctor', 'Check installation health and plugin status'],
                     ['nest version', 'Print the installed NEST version'],
+                    ['nest dashboard [trace.jsonl]', 'Open the interactive trace viewer in a browser'],
                     ['nest plugins list', 'List all installed layer plugins'],
                     ['nest templates list', 'List available agent templates'],
                     ['nest templates show <name>', 'Display a template'],

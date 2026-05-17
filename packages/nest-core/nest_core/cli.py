@@ -353,7 +353,7 @@ def _find_dashboard_html() -> Path | None:
     candidates.append(Path.cwd() / "apps" / "dashboard" / "index.html")
 
     # Try relative to this source file
-    cli_dir = Path(__file__).resolve().parent  # nest_cli/
+    cli_dir = Path(__file__).resolve().parent  # nest_core/
     for ancestor in [cli_dir.parent, cli_dir.parent.parent, cli_dir.parent.parent.parent]:
         candidates.append(ancestor / "apps" / "dashboard" / "index.html")
 
@@ -366,7 +366,9 @@ def _find_dashboard_html() -> Path | None:
 @app.command()
 def version() -> None:
     """Print the NEST version."""
-    typer.echo("nest 0.1.0")
+    from nest_core import __version__
+
+    typer.echo(f"nest {__version__}")
 
 
 @plugins_app.command("list")
@@ -394,9 +396,21 @@ def plugins_list(
         typer.echo(f"  - {plugin_name}")
 
 
+def _require_shell() -> None:
+    try:
+        import nest_shell  # noqa: F401
+    except ImportError:
+        typer.echo(
+            'Error: nest-shell is not installed. Run: pip install "nest-core[llm]"',
+            err=True,
+        )
+        raise typer.Exit(1)
+
+
 @templates_app.command("list")
 def templates_list() -> None:
     """List available agent templates."""
+    _require_shell()
     from nest_shell.templates import TemplateRegistry
 
     reg = TemplateRegistry()
@@ -415,6 +429,7 @@ def templates_show(
     name: str = typer.Argument(help="Template name to display."),
 ) -> None:
     """Show details of a specific agent template."""
+    _require_shell()
     from nest_shell.templates import TemplateRegistry
 
     reg = TemplateRegistry()
@@ -446,6 +461,7 @@ def templates_create(
     model: str = typer.Option("gpt-4o-mini", help="Model name."),
 ) -> None:
     """Create a new agent template."""
+    _require_shell()
     from nest_shell.templates import AgentTemplate, TemplateRegistry
 
     reg = TemplateRegistry()
@@ -465,6 +481,7 @@ def templates_duplicate(
     new_name: str = typer.Argument(help="Name for the new copy."),
 ) -> None:
     """Duplicate an existing template under a new name."""
+    _require_shell()
     from nest_shell.templates import TemplateRegistry
 
     reg = TemplateRegistry()

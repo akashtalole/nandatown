@@ -95,7 +95,7 @@ def _deal_rate(events: list[dict[str, Any]]) -> float:
     for ev in events:
         if ev.get("kind") != "send":
             continue
-        content = ev.get("content", "")
+        content = ev.get("msg", "")
         if _BUY_RE.match(content):
             buy_count += 1
         elif _SOLD_RE.match(content):
@@ -116,7 +116,7 @@ def _rejection_rate(events: list[dict[str, Any]]) -> float:
     for ev in events:
         if ev.get("kind") != "send":
             continue
-        content = ev.get("content", "")
+        content = ev.get("msg", "")
         if _BUY_RE.match(content):
             buy_count += 1
         elif _REJECT_RE.match(content):
@@ -140,7 +140,7 @@ def _mean_rounds_to_deal(events: list[dict[str, Any]]) -> float:
     for ev in events:
         if ev.get("kind") != "send":
             continue
-        content = ev.get("content", "")
+        content = ev.get("msg", "")
         agent = ev.get("agent", "")
         to = ev.get("to", "")
         frm = ev.get("from", agent)

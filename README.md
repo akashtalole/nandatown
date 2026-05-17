@@ -61,29 +61,28 @@ cd nest
 uv sync
 
 # Run a scenario
-uv run nest run scenarios/marketplace.yaml
+nest run scenarios/marketplace.yaml
 
 # Inspect the trace
-uv run nest inspect traces/marketplace.jsonl
+nest inspect traces/marketplace.jsonl
 
 # Generate an HTML report
-uv run nest report traces/marketplace.jsonl -o report.html
+nest report traces/marketplace.jsonl -o report.html
 
 # Check your setup
-uv run nest doctor
+nest doctor
 ```
 
-Or, if installed as a package:
+Or install from PyPI:
 
 ```bash
-pip install nest-cli
+pip install "nest-core[plugins]"
 nest run scenarios/marketplace.yaml
-nest inspect traces/marketplace.jsonl
 ```
 
 ## Scenarios
 
-NEST ships with six reference scenarios. Each is a YAML file that configures agents, protocol layers, failure parameters, and metrics.
+NEST ships with seven reference scenarios. Each is a YAML file that configures agents, protocol layers, failure parameters, and metrics.
 
 | Scenario | Agents | What it tests | Notes |
 |---|---|---|---|
@@ -198,9 +197,9 @@ layers:
 ```
 nest/
 +-- packages/
-|   +-- nest-core/              # Simulator engine, event loop, layer interfaces, scenario runner
+|   +-- nest-core/              # Simulator engine, CLI, layer interfaces, scenario runner
 |   +-- nest-sdk/               # Public API re-exports for plugin authors
-|   +-- nest-cli/               # CLI: nest run, nest inspect, nest report, nest doctor
+|   +-- nest-cli/               # (Deprecated — CLI is now in nest-core)
 |   +-- nest-mocks/             # In-memory mock services for testing
 |   +-- nest-shell/             # Tier 2 LLM-backed agent (OpenAI, Anthropic, mock)
 |   +-- nest-scenarios/         # Scenario registration and discovery

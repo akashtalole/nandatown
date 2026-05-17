@@ -7,7 +7,7 @@ Part of [NEST](https://github.com/mariagorskikh/nest) (Network Environment for S
 ## Installation
 
 ```bash
-pip install nest-core
+pip install "nest-core[plugins]"
 ```
 
 See the [main repository](https://github.com/mariagorskikh/nest) for full documentation.

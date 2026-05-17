@@ -37,7 +37,7 @@ protocol: negotiation
 metrics:
   - delivery_rate
   - deal_rate
-  - latency
+  - mean_latency
   - throughput`,
   auction: `scenario: auction
 agents:
@@ -49,7 +49,7 @@ reserve_price: 100
 metrics:
   - delivery_rate
   - deal_rate
-  - price_convergence`,
+  - mean_rounds_to_deal`,
   voting: `scenario: voting
 agents:
   proposer: 1
@@ -59,8 +59,8 @@ rounds: 3
 protocol: majority_vote
 quorum: 0.5
 metrics:
-  - participation_rate
-  - consensus_time`,
+  - delivery_rate
+  - duration`,
   consensus: `scenario: consensus
 agents:
   leader: 1
@@ -80,7 +80,7 @@ agents:
 hops: 4
 protocol: pipeline
 metrics:
-  - end_to_end_latency
+  - mean_latency
   - delivery_rate`,
   reputation: `scenario: reputation
 agents:
@@ -91,8 +91,8 @@ agents:
 malicious_ratio: 0.2
 protocol: reputation_tracking
 metrics:
-  - detection_accuracy
-  - trust_convergence`,
+  - delivery_rate
+  - unique_pairs`,
 };
 
 export default function ExperimentsPage() {
@@ -437,7 +437,7 @@ export default function ExperimentsPage() {
 
           <div className="mt-6 rounded-lg bg-warm-900 p-4 max-w-xl overflow-x-auto">
             <pre className="text-sm leading-relaxed text-warm-200 font-mono">
-              <code>pip install nest-cli &amp;&amp; nest run scenarios/marketplace.yaml</code>
+              <code>pip install "nest-core[plugins]" &amp;&amp; nest run scenarios/marketplace.yaml</code>
             </pre>
           </div>
 

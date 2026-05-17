@@ -109,7 +109,7 @@ class TestMarketplaceMetrics:
                 "agent": "buyer-0",
                 "kind": "send",
                 "to": "seller-0",
-                "content": "buy:laptop:400",
+                "msg": "buy:laptop:400",
                 "corr": "c-1",
             },
             {
@@ -117,7 +117,7 @@ class TestMarketplaceMetrics:
                 "agent": "seller-0",
                 "kind": "receive",
                 "from": "buyer-0",
-                "content": "buy:laptop:400",
+                "msg": "buy:laptop:400",
                 "corr": "c-1",
             },
             {
@@ -125,7 +125,7 @@ class TestMarketplaceMetrics:
                 "agent": "seller-0",
                 "kind": "send",
                 "to": "buyer-0",
-                "content": "reject:laptop:500",
+                "msg": "reject:laptop:500",
                 "corr": "c-2",
             },
             {
@@ -133,7 +133,7 @@ class TestMarketplaceMetrics:
                 "agent": "buyer-0",
                 "kind": "receive",
                 "from": "seller-0",
-                "content": "reject:laptop:500",
+                "msg": "reject:laptop:500",
                 "corr": "c-2",
             },
             # Round 2: buyer-0 buys again, seller accepts
@@ -142,7 +142,7 @@ class TestMarketplaceMetrics:
                 "agent": "buyer-0",
                 "kind": "send",
                 "to": "seller-0",
-                "content": "buy:laptop:480",
+                "msg": "buy:laptop:480",
                 "corr": "c-3",
             },
             {
@@ -150,7 +150,7 @@ class TestMarketplaceMetrics:
                 "agent": "seller-0",
                 "kind": "receive",
                 "from": "buyer-0",
-                "content": "buy:laptop:480",
+                "msg": "buy:laptop:480",
                 "corr": "c-3",
             },
             {
@@ -158,7 +158,7 @@ class TestMarketplaceMetrics:
                 "agent": "seller-0",
                 "kind": "send",
                 "to": "buyer-0",
-                "content": "sold:laptop:480",
+                "msg": "sold:laptop:480",
                 "corr": "c-4",
             },
             {
@@ -166,7 +166,7 @@ class TestMarketplaceMetrics:
                 "agent": "buyer-0",
                 "kind": "receive",
                 "from": "seller-0",
-                "content": "sold:laptop:480",
+                "msg": "sold:laptop:480",
                 "corr": "c-4",
             },
             # Another buyer, immediate deal
@@ -175,7 +175,7 @@ class TestMarketplaceMetrics:
                 "agent": "buyer-1",
                 "kind": "send",
                 "to": "seller-0",
-                "content": "buy:keyboard:50",
+                "msg": "buy:keyboard:50",
                 "corr": "c-5",
             },
             {
@@ -183,7 +183,7 @@ class TestMarketplaceMetrics:
                 "agent": "seller-0",
                 "kind": "receive",
                 "from": "buyer-1",
-                "content": "buy:keyboard:50",
+                "msg": "buy:keyboard:50",
                 "corr": "c-5",
             },
             {
@@ -191,7 +191,7 @@ class TestMarketplaceMetrics:
                 "agent": "seller-0",
                 "kind": "send",
                 "to": "buyer-1",
-                "content": "sold:keyboard:50",
+                "msg": "sold:keyboard:50",
                 "corr": "c-6",
             },
             {
@@ -199,7 +199,7 @@ class TestMarketplaceMetrics:
                 "agent": "buyer-1",
                 "kind": "receive",
                 "from": "seller-0",
-                "content": "sold:keyboard:50",
+                "msg": "sold:keyboard:50",
                 "corr": "c-6",
             },
             {"ts": 7.0, "agent": "buyer-0", "kind": "stop"},
@@ -235,7 +235,7 @@ class TestMarketplaceMetrics:
         trace = tmp_path / "t.jsonl"
         events = [
             {"ts": 0.0, "agent": "a1", "kind": "start"},
-            {"ts": 1.0, "agent": "a1", "kind": "send", "to": "a2", "content": "hello"},
+            {"ts": 1.0, "agent": "a1", "kind": "send", "to": "a2", "msg": "hello"},
             {"ts": 2.0, "agent": "a1", "kind": "stop"},
         ]
         trace.write_text("\n".join(json.dumps(e) for e in events))
