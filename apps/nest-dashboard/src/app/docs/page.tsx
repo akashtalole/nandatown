@@ -522,10 +522,10 @@ export default function DocsPage() {
             <h3 className="mb-3 text-lg font-semibold text-warm-800">
               Quick install (from PyPI)
             </h3>
-            <CodeBlock>pip install nest-cli</CodeBlock>
+            <CodeBlock>pip install "nest-core[plugins]"</CodeBlock>
             <p className="mb-6 text-sm text-warm-600">
-              This pulls in all core dependencies (nest-core, nest-sdk,
-              nest-plugins-reference). Requires <strong>Python 3.12+</strong>.
+              This installs the NEST engine, CLI, and all 12 default plugins.
+              Requires <strong>Python 3.12+</strong>.
             </p>
 
             <h3 className="mb-3 text-lg font-semibold text-warm-800">
@@ -1037,9 +1037,9 @@ my_decay = "my_trust.plugin:DecayTrust"`}
                 question="Can I pip install this?"
                 answer={
                   <p>
-                    Yes! Run <InlineCode>pip install nest-cli</InlineCode> and
-                    you&apos;re ready to go. All core packages (nest-core, nest-sdk,
-                    nest-plugins-reference) are pulled in automatically.
+                    Yes! Run <InlineCode>pip install &quot;nest-core[plugins]&quot;</InlineCode> and
+                    you&apos;re ready to go. This installs the engine, CLI, and all
+                    12 default plugins.
                   </p>
                 }
               />

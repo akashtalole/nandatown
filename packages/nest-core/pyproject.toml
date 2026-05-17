@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 [project]
 name = "nest-core"
-version = "0.1.0"
+version = "0.1.1"
 description = "NEST core engine: layer interfaces, runtime, event loop, and simulator"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -18,7 +18,16 @@ classifiers = [
 dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
+    "typer>=0.12",
 ]
+
+[project.optional-dependencies]
+plugins = ["nest-plugins-reference>=0.1.0"]
+llm = ["nest-shell>=0.1.0"]
+full = ["nest-core[plugins,llm]"]
+
+[project.scripts]
+nest = "nest_core.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/mariagorskikh/nest"
