@@ -8,13 +8,6 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-3">
-              <Image
-                src="/logo.svg"
-                alt="NEST logo"
-                width={32}
-                height={32}
-                className="rounded-md"
-              />
               <span className="text-lg font-semibold tracking-tight text-warm-900">
                 NEST
               </span>

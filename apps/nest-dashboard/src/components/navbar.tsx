@@ -20,13 +20,6 @@ export function Navbar() {
     <nav className="sticky top-0 z-50 border-b border-warm-200 bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         <Link href="/" className="flex items-center gap-3 group">
-          <Image
-            src="/logo.svg"
-            alt="NEST logo"
-            width={32}
-            height={32}
-            className="rounded-md"
-          />
           <span className="text-lg font-semibold tracking-tight text-warm-900">
             NEST
           </span>

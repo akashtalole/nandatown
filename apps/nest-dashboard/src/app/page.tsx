@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { liveAgentChat, experiments, scenarioColors } from '@/lib/demo-data';
 import type { AgentMessage } from '@/lib/demo-data';
+import { MiniMap } from '@/components/mini-map';
 
 /* ------------------------------------------------------------------ */
 /*  Helper: scenario color from agent name                            */
@@ -111,34 +112,52 @@ export default function Home() {
         />
 
         <div className="relative mx-auto max-w-7xl px-6 pb-24 pt-20 md:pt-32 md:pb-32">
-          <div className="max-w-3xl animate-fade-in">
-            <p className="text-sm font-medium uppercase tracking-widest text-crimson">
-              Project NANDA &middot; MIT Media Lab
-            </p>
-            <h1 className="mt-6 text-5xl font-bold leading-[1.1] tracking-tight text-warm-950 md:text-7xl">
-              Test Agent Protocols
-              <br />
-              at Scale
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-warm-500">
-              An open sandbox where AI agents talk, trade, vote, and cooperate
-              &mdash; so you can see what works before going live.
-            </p>
+          <div className="grid gap-12 lg:grid-cols-[1fr_minmax(0,520px)] lg:items-center">
+            <div className="max-w-3xl animate-fade-in">
+              <p className="text-sm font-medium uppercase tracking-widest text-crimson">
+                Project NANDA &middot; MIT Media Lab
+              </p>
+              <h1 className="mt-6 text-5xl font-bold leading-[1.1] tracking-tight text-warm-950 md:text-7xl">
+                Test Agent Protocols
+                <br />
+                at Scale
+              </h1>
+              <p className="mt-6 max-w-xl text-lg leading-8 text-warm-500">
+                An open sandbox where AI agents talk, trade, vote, and cooperate
+                &mdash; so you can see what works before going live.
+              </p>
 
-            <div className="mt-10 flex flex-wrap gap-4">
-              <Link
-                href="/experiments"
-                className="inline-flex items-center rounded-lg bg-crimson px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-crimson-light"
-              >
-                Try an Experiment
-              </Link>
-              <Link
-                href="/leaderboard"
-                className="inline-flex items-center rounded-lg border border-warm-300 px-6 py-3 text-sm font-semibold text-warm-900 transition-colors hover:border-warm-400 hover:bg-warm-100"
-              >
-                View Leaderboard
-              </Link>
+              <div className="mt-10 flex flex-wrap gap-4">
+                <Link
+                  href="/experiments"
+                  className="inline-flex items-center rounded-lg bg-crimson px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-crimson-light"
+                >
+                  Try an Experiment
+                </Link>
+                <Link
+                  href="/leaderboard"
+                  className="inline-flex items-center rounded-lg border border-warm-300 px-6 py-3 text-sm font-semibold text-warm-900 transition-colors hover:border-warm-400 hover:bg-warm-100"
+                >
+                  View Leaderboard
+                </Link>
+              </div>
             </div>
+
+            <Link
+              href="/agents"
+              className="hidden lg:block animate-fade-in stagger-1 group"
+              aria-label="Open the full agent network map"
+            >
+              <MiniMap width={560} height={320} />
+              <div className="mt-3 flex items-center justify-between px-1">
+                <span className="text-[11px] font-mono uppercase tracking-widest text-warm-500">
+                  Agent network · live
+                </span>
+                <span className="text-xs text-warm-500 group-hover:text-warm-900 transition-colors">
+                  Open map →
+                </span>
+              </div>
+            </Link>
           </div>
 
           {/* Mini chat preview in the hero */}
