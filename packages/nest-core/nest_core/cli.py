@@ -28,23 +28,65 @@ app = typer.Typer(
 plugins_app = typer.Typer(help="Manage plugins.")
 app.add_typer(plugins_app, name="plugins")
 
+scenarios_app = typer.Typer(help="Inspect and copy built-in scenarios.")
+app.add_typer(scenarios_app, name="scenarios")
+
 templates_app = typer.Typer(help="Manage agent templates.")
 app.add_typer(templates_app, name="templates")
 
 
+def _resolve_scenario_arg(scenario: str) -> Path | None:
+    """Resolve a `nest run` argument to a real YAML path.
+
+    Resolution order, first hit wins:
+      1. ``scenario`` is an existing file path.
+      2. ``scenario`` is the name of a built-in scenario shipped in the wheel.
+      3. ``./scenarios/<scenario>.yaml`` relative to the current directory.
+
+    Returns ``None`` if nothing resolves.
+    """
+    from nest_core.builtin_scenarios import builtin_path, is_builtin
+
+    p = Path(scenario)
+    if p.exists():
+        return p
+    if is_builtin(scenario):
+        return builtin_path(scenario)
+    local = Path("scenarios") / f"{scenario}.yaml"
+    if local.exists():
+        return local
+    return None
+
+
 @app.command()
 def run(
-    scenario: str = typer.Argument(help="Path to a scenario YAML file."),
+    scenario: str = typer.Argument(
+        help=(
+            "Built-in scenario name (e.g. `marketplace`) or path to a YAML file. "
+            "Run `nest scenarios list` to see what's bundled."
+        ),
+    ),
     seed: int | None = typer.Option(None, help="Override the scenario seed."),
     ticks: int | None = typer.Option(None, help="Override max ticks."),
     output: str | None = typer.Option(None, "-o", "--output", help="Override trace output path."),
 ) -> None:
-    """Run a scenario from a YAML file."""
+    """Run a scenario from a YAML file or a built-in scenario name."""
+    from nest_core.builtin_scenarios import list_builtin
     from nest_core.scenario import ScenarioConfig
 
-    path = Path(scenario)
-    if not path.exists():
-        typer.echo(f"Error: scenario file not found: {scenario}", err=True)
+    path = _resolve_scenario_arg(scenario)
+    if path is None:
+        typer.echo(f"Error: no scenario named or located at {scenario!r}.", err=True)
+        typer.echo("", err=True)
+        typer.echo("Built-in scenarios you can run by name:", err=True)
+        for name in list_builtin():
+            typer.echo(f"  nest run {name}", err=True)
+        typer.echo("", err=True)
+        typer.echo(
+            "Or pass a path to your own YAML, "
+            "or copy a built-in to edit: nest scenarios cp marketplace .",
+            err=True,
+        )
         raise typer.Exit(1)
 
     try:
@@ -398,6 +440,78 @@ def version() -> None:
     from nest_core import __version__
 
     typer.echo(f"nest {__version__}")
+
+
+@scenarios_app.command("list")
+def scenarios_list() -> None:
+    """List the built-in scenarios bundled with nest-core."""
+    from nest_core.builtin_scenarios import list_builtin
+
+    names = list_builtin()
+    if not names:
+        typer.echo("No built-in scenarios are bundled.")
+        return
+    typer.echo("Built-in scenarios (run with `nest run <name>`):")
+    for name in names:
+        typer.echo(f"  {name}")
+
+
+@scenarios_app.command("show")
+def scenarios_show(
+    name: str = typer.Argument(help="Built-in scenario name."),
+) -> None:
+    """Print the YAML for a built-in scenario to stdout."""
+    from nest_core.builtin_scenarios import builtin_text, list_builtin
+
+    try:
+        typer.echo(builtin_text(name), nl=False)
+    except KeyError:
+        typer.echo(f"Error: no built-in scenario named {name!r}.", err=True)
+        typer.echo("Available:", err=True)
+        for n in list_builtin():
+            typer.echo(f"  {n}", err=True)
+        raise typer.Exit(1) from None
+
+
+@scenarios_app.command("cp")
+def scenarios_cp(
+    name: str = typer.Argument(help="Built-in scenario name to copy."),
+    dest: str = typer.Argument(
+        ".",
+        help="Destination directory or filename. Defaults to the current directory.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Overwrite the destination if it already exists.",
+    ),
+) -> None:
+    """Copy a built-in scenario YAML to a local path so you can edit and re-run it."""
+    from nest_core.builtin_scenarios import builtin_text, list_builtin
+
+    if name not in list_builtin():
+        typer.echo(f"Error: no built-in scenario named {name!r}.", err=True)
+        typer.echo("Available:", err=True)
+        for n in list_builtin():
+            typer.echo(f"  {n}", err=True)
+        raise typer.Exit(1)
+
+    dest_path = Path(dest)
+    if dest_path.is_dir() or (not dest_path.exists() and dest.endswith("/")):
+        dest_path = dest_path / f"{name}.yaml"
+
+    if dest_path.exists() and not force:
+        typer.echo(
+            f"Error: {dest_path} already exists. Pass --force to overwrite.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    dest_path.write_text(builtin_text(name), encoding="utf-8")
+    typer.echo(f"Wrote {dest_path}")
+    typer.echo(f"Run it: nest run {dest_path}")
 
 
 @plugins_app.command("list")

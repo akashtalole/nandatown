@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 [project]
 name = "nest-core"
-version = "0.1.2"
+version = "0.1.3"
 description = "NEST core engine: layer interfaces, runtime, event loop, and simulator"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -39,3 +39,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["nest_core"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"nest_core/scenarios_builtin/yaml" = "nest_core/scenarios_builtin/yaml"

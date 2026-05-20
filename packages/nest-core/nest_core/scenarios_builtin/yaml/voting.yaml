@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+# Voting scenario: agents vote on proposals.
+name: voting
+description: "1 proposer, 1 coordinator, and 18 voters reaching consensus."
+
+tier: 1
+seed: 42
+
+agents:
+  count: 20
+  brain: state-machine
+  roles:
+    - name: proposer
+      count: 1
+    - name: coordinator
+      count: 1
+    - name: voter
+      count: 18
+
+layers:
+  transport: in_memory
+  comms: nest_native
+  identity: did_key
+  registry: in_memory
+  auth: jwt
+  trust: score_average
+  payments: prepaid_credits
+  coordination: contract_net
+  negotiation: alternating_offers
+  memory: blackboard
+  privacy: noop
+  datafacts: datafacts_v1
+
+task:
+  type: voting
+  config:
+    rounds: 5
+    threshold: 0.5
+
+failures:
+  message_drop: 0.0
+
+duration: "ticks: 10000"
+
+metrics:
+  - success_rate
+  - message_count
+  - agent_count
+
+output:
+  trace: ./traces/voting.jsonl

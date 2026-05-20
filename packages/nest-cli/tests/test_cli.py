@@ -56,7 +56,9 @@ class TestRun:
     def test_run_missing_file(self) -> None:
         result = runner.invoke(app, ["run", "nonexistent.yaml"])
         assert result.exit_code == 1
-        assert "not found" in result.output
+        # The error mentions the bad name + lists the built-ins as a hint.
+        assert "no scenario named or located at" in result.output
+        assert "nest run marketplace" in result.output
 
     def test_run_seed_override(self, tmp_path: Path) -> None:
         yaml_path = Path(__file__).parent.parent.parent.parent / "scenarios" / "marketplace.yaml"
