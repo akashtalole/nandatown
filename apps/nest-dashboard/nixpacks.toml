@@ -1,0 +1,19 @@
+# Nixpacks build plan for the NEST dashboard (Next.js 16).
+#
+# Use with Railway's Root Directory set to `apps/nest-dashboard` so the
+# repo's Python files (pyproject.toml, uv.lock) don't trip the Node
+# detector. Falls back gracefully if Railway is pointed at the repo root.
+
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm ci --no-audit --no-fund"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start"

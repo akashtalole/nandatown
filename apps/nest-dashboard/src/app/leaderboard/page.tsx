@@ -30,16 +30,9 @@ const scenarioLabel: Record<string, string> = {
   auction: 'Auction',
   voting: 'Voting',
   consensus: 'Consensus',
-  supply_chain: 'Supply Chain',
+  supply_chain: 'Supply chain',
   reputation: 'Reputation',
 };
-
-function medalEmoji(rank: number): string {
-  if (rank === 1) return '\u{1F947}';
-  if (rank === 2) return '\u{1F948}';
-  if (rank === 3) return '\u{1F949}';
-  return '';
-}
 
 export default function LeaderboardPage() {
   const [activeFilter, setActiveFilter] = useState<string>('All');
@@ -57,105 +50,94 @@ export default function LeaderboardPage() {
 
   const filteredAndSorted = useMemo(() => {
     let data = [...leaderboardData];
-
     if (activeFilter !== 'All') {
       const key = scenarioKeyMap[activeFilter];
       data = data.filter((entry) => entry.scenario === key);
     }
-
     data.sort((a, b) => {
       let aVal: number;
       let bVal: number;
-
       switch (sortField) {
         case 'rank':
-          aVal = a.rank;
-          bVal = b.rank;
-          break;
+          aVal = a.rank; bVal = b.rank; break;
         case 'deliveryRate':
-          aVal = a.deliveryRate;
-          bVal = b.deliveryRate;
-          break;
+          aVal = a.deliveryRate; bVal = b.deliveryRate; break;
         case 'dealRate':
-          aVal = a.dealRate ?? -1;
-          bVal = b.dealRate ?? -1;
-          break;
+          aVal = a.dealRate ?? -1; bVal = b.dealRate ?? -1; break;
         case 'latency':
-          aVal = a.latency;
-          bVal = b.latency;
-          break;
+          aVal = a.latency; bVal = b.latency; break;
         case 'agents':
-          aVal = a.agents;
-          bVal = b.agents;
-          break;
+          aVal = a.agents; bVal = b.agents; break;
         default:
-          aVal = a.rank;
-          bVal = b.rank;
+          aVal = a.rank; bVal = b.rank;
       }
-
       return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
     });
-
     return data;
   }, [activeFilter, sortField, sortDirection]);
 
-  const sortIndicator = (field: SortField) => {
-    if (sortField !== field) return null;
-    return (
-      <span className="ml-1 text-crimson">
-        {sortDirection === 'asc' ? '↑' : '↓'}
-      </span>
-    );
-  };
+  const sortIndicator = (field: SortField) =>
+    sortField === field ? (sortDirection === 'asc' ? '↑' : '↓') : '';
 
   return (
-    <div className="min-h-screen bg-warm-50">
+    <div className="min-h-screen bg-cream-100">
       {/* Header */}
-      <section className="border-b border-warm-200 bg-white">
-        <div className="mx-auto max-w-7xl px-6 py-16">
-          <h1 className="text-4xl font-bold tracking-tight text-warm-900 animate-fade-in">
-            Leaderboard
-          </h1>
-          <p className="mt-4 max-w-3xl text-lg leading-relaxed text-warm-500 animate-fade-in stagger-1">
-            Benchmark rankings across all scenarios. Individual metrics are
-            shown side-by-side &mdash; no composite weighting.
-          </p>
+      <section className="paper-texture border-b border-cream-400/70">
+        <div className="mx-auto max-w-[1240px] px-6 sm:px-10 pt-20 pb-16">
+          <div className="flex items-center gap-3 mb-10 animate-fade-in">
+            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-rust" />
+            <span className="eyebrow">Tier 1 reference benchmarks</span>
+          </div>
+
+          <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr] lg:items-end">
+            <h1 className="font-display animate-fade-in stagger-1 text-[clamp(2.6rem,6vw,5rem)] leading-[1.02] tracking-tight text-ink-900">
+              Reproducible<br />
+              <span className="italic text-ink-700">rankings</span> by<br />
+              scenario.
+            </h1>
+            <p className="animate-fade-in stagger-2 text-[1.1rem] leading-[1.6] text-ink-500 max-w-md">
+              Side-by-side metrics, no composite weighting, no hidden tie-breakers.
+              Each entry is reproducible with the same seed under deterministic
+              Tier 1 conditions.
+            </p>
+          </div>
         </div>
       </section>
 
-      <div className="mx-auto max-w-7xl px-6 py-10">
+      <div className="mx-auto max-w-[1240px] px-6 sm:px-10 py-12">
         {/* Filters */}
-        <div className="animate-fade-in stagger-2">
-          <div className="flex flex-wrap gap-2">
-            {scenarios.map((scenario) => {
-              const isActive = activeFilter === scenario;
-              return (
-                <button
-                  key={scenario}
-                  onClick={() => setActiveFilter(scenario)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-warm-900 text-white shadow-sm'
-                      : 'bg-white text-warm-600 border border-warm-200 hover:border-warm-300 hover:text-warm-900'
-                  }`}
-                >
-                  {scenario}
-                </button>
-              );
-            })}
-          </div>
+        <div className="animate-fade-in stagger-2 flex flex-wrap items-center gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300 mr-2">
+            Scenario
+          </span>
+          {scenarios.map((scenario) => {
+            const isActive = activeFilter === scenario;
+            return (
+              <button
+                key={scenario}
+                onClick={() => setActiveFilter(scenario)}
+                className={`px-3.5 py-1.5 text-[0.85rem] font-medium rounded-full transition-colors ${
+                  isActive
+                    ? 'bg-ink-900 text-cream-50'
+                    : 'text-ink-500 hover:text-ink-900 border border-cream-400/70 hover:border-ink-300'
+                }`}
+              >
+                {scenario}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Sort Controls */}
+        {/* Sort controls */}
         <div className="mt-6 flex flex-wrap items-center gap-2 animate-fade-in stagger-3">
-          <span className="text-sm font-medium text-warm-500 mr-1">
-            Sort by:
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300 mr-2">
+            Sort by
           </span>
           {(
             [
               ['rank', 'Rank'],
-              ['deliveryRate', 'Delivery Rate'],
-              ['dealRate', 'Deal Rate'],
+              ['deliveryRate', 'Delivery'],
+              ['dealRate', 'Deal'],
               ['latency', 'Latency'],
               ['agents', 'Agents'],
             ] as [SortField, string][]
@@ -165,138 +147,125 @@ export default function LeaderboardPage() {
               <button
                 key={field}
                 onClick={() => handleSort(field)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+                className={`px-3 py-1.5 text-[0.85rem] font-medium transition-colors ${
                   isActive
-                    ? 'bg-crimson/10 text-crimson border border-crimson/20'
-                    : 'text-warm-500 hover:text-warm-700 border border-transparent'
+                    ? 'text-ink-900'
+                    : 'text-ink-400 hover:text-ink-900'
                 }`}
               >
-                {label}
-                {sortIndicator(field)}
+                <span className="border-b border-transparent" style={{
+                  borderBottomColor: isActive ? 'var(--color-ink-900)' : 'transparent',
+                }}>
+                  {label} {sortIndicator(field)}
+                </span>
               </button>
             );
           })}
         </div>
 
         {/* Table */}
-        <div className="mt-8 animate-fade-in stagger-4">
-          <div className="overflow-x-auto rounded-xl border border-warm-200 bg-white shadow-sm">
-            <table className="w-full min-w-[800px] text-left">
+        <div className="mt-10 animate-fade-in stagger-4">
+          <div className="overflow-x-auto rounded-2xl border border-cream-400/70 bg-cream-50">
+            <table className="w-full min-w-[820px] text-left">
               <thead>
-                <tr className="border-b border-warm-200 bg-warm-50/80">
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-warm-500">
-                    Rank
-                  </th>
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-warm-500">
-                    Name
-                  </th>
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-warm-500">
-                    Scenario
-                  </th>
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-warm-500">
-                    Agents
-                  </th>
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-warm-500">
-                    Delivery Rate
-                  </th>
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-warm-500">
-                    Deal Rate
-                  </th>
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-warm-500">
-                    Latency (ticks)
-                  </th>
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-warm-500">
-                    Throughput (msg/tick)
-                  </th>
-                  <th className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-warm-500">
-                    Date
-                  </th>
+                <tr className="border-b border-cream-400/70 bg-cream-200">
+                  {[
+                    'Rank',
+                    'Name',
+                    'Scenario',
+                    'Agents',
+                    'Delivery',
+                    'Deal',
+                    'Latency',
+                    'Throughput',
+                    'Date',
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="px-5 py-4 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-400 whitespace-nowrap"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-warm-100">
+              <tbody className="divide-y divide-cream-400/40">
                 {filteredAndSorted.map((entry) => {
-                  const medal = medalEmoji(entry.rank);
-                  const badgeColor = scenarioColors[entry.scenario] || '#78716C';
+                  const badgeColor = scenarioColors[entry.scenario] || '#6B6557';
                   const barWidth = Math.min(entry.deliveryRate, 100);
+                  const isTop = entry.rank <= 3;
 
                   return (
                     <tr
                       key={`${entry.rank}-${entry.name}`}
-                      className="transition-colors hover:bg-warm-50/60"
+                      className="transition-colors hover:bg-cream-200/60"
                     >
-                      {/* Rank */}
+                      {/* Rank — typographic, no emoji */}
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <span className="text-sm font-semibold text-warm-900">
-                          {medal ? `${medal} ` : ''}
-                          {entry.rank}
+                        <span
+                          className={`font-display text-[1.4rem] leading-none tabular-nums ${
+                            isTop ? 'text-rust' : 'text-ink-900'
+                          }`}
+                        >
+                          {String(entry.rank).padStart(2, '0')}
                         </span>
                       </td>
 
-                      {/* Name */}
                       <td className="px-5 py-4">
-                        <span className="text-sm font-medium text-warm-900">
+                        <span className="text-[0.95rem] font-medium text-ink-900">
                           {entry.name}
                         </span>
                       </td>
 
-                      {/* Scenario Badge */}
                       <td className="px-5 py-4 whitespace-nowrap">
                         <span
-                          className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
-                          style={{ backgroundColor: badgeColor }}
+                          className="font-mono text-[10px] uppercase tracking-[0.22em]"
+                          style={{ color: badgeColor }}
                         >
                           {scenarioLabel[entry.scenario] || entry.scenario}
                         </span>
                       </td>
 
-                      {/* Agents */}
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <span className="text-sm text-warm-700">
+                        <span className="text-[0.92rem] font-mono text-ink-500 tabular-nums">
                           {entry.agents}
                         </span>
                       </td>
 
-                      {/* Delivery Rate */}
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-warm-900">
+                        <div className="flex items-center gap-3">
+                          <span className="text-[0.92rem] font-mono text-ink-900 tabular-nums w-12">
                             {entry.deliveryRate}%
                           </span>
-                          <div className="h-1.5 w-16 rounded-full bg-warm-200">
+                          <div className="h-1 w-20 rounded-full bg-cream-300 overflow-hidden">
                             <div
-                              className="h-1.5 rounded-full bg-crimson"
+                              className="h-1 rounded-full bg-rust"
                               style={{ width: `${barWidth}%` }}
                             />
                           </div>
                         </div>
                       </td>
 
-                      {/* Deal Rate */}
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <span className="text-sm text-warm-700">
-                          {entry.dealRate !== null
-                            ? `${entry.dealRate}%`
-                            : '—'}
+                        <span className="text-[0.92rem] font-mono text-ink-500 tabular-nums">
+                          {entry.dealRate !== null ? `${entry.dealRate}%` : '—'}
                         </span>
                       </td>
 
-                      {/* Latency */}
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <span className="text-sm text-warm-700">
-                          {entry.latency} ticks
+                        <span className="text-[0.92rem] font-mono text-ink-500 tabular-nums">
+                          {entry.latency}t
                         </span>
                       </td>
 
-                      {/* Throughput */}
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <span className="text-sm text-warm-700">
-                          {entry.throughput} msg/tick
+                        <span className="text-[0.92rem] font-mono text-ink-500 tabular-nums">
+                          {entry.throughput} m/t
                         </span>
                       </td>
 
-                      {/* Date */}
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <span className="text-sm text-warm-400">
+                        <span className="text-[0.82rem] text-ink-300">
                           {entry.date}
                         </span>
                       </td>
@@ -306,11 +275,10 @@ export default function LeaderboardPage() {
 
                 {filteredAndSorted.length === 0 && (
                   <tr>
-                    <td
-                      colSpan={9}
-                      className="px-5 py-16 text-center text-sm text-warm-400"
-                    >
-                      No entries match the selected filter.
+                    <td colSpan={9} className="px-5 py-20 text-center">
+                      <p className="font-display italic text-[1.2rem] text-ink-400">
+                        No entries match this filter.
+                      </p>
                     </td>
                   </tr>
                 )}
@@ -319,48 +287,55 @@ export default function LeaderboardPage() {
           </div>
         </div>
 
-        {/* Reproducibility Note */}
-        <div className="mt-10 animate-fade-in stagger-5">
-          <div className="rounded-xl border border-warm-200 bg-white p-8 shadow-sm">
-            <h2 className="text-lg font-semibold text-warm-900">
-              About These Rankings
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-warm-600">
-              Rankings are based on Tier 1 reference simulations. Results are
-              deterministic and reproducible with the same seed. Tier 1 uses
-              virtual tick-based time with no transport failures, so delivery
-              rates are expected to be near 100%.
-            </p>
+        {/* Reproducibility note */}
+        <div className="mt-12 animate-fade-in stagger-5">
+          <div className="rounded-2xl border border-cream-400/70 bg-cream-50 p-10 sm:p-12">
+            <div className="grid gap-10 lg:grid-cols-[1fr_2fr] lg:items-start">
+              <div>
+                <p className="eyebrow">Methodology</p>
+                <h2 className="font-display mt-4 text-[2rem] leading-[1.1] text-ink-900">
+                  About these<br />
+                  <span className="italic text-ink-700">rankings.</span>
+                </h2>
+              </div>
+              <div>
+                <p className="text-[1rem] leading-[1.65] text-ink-500">
+                  Rankings are based on Tier 1 reference simulations. Results
+                  are deterministic and reproducible with the same seed. Tier 1
+                  uses virtual tick-based time with no transport failures, so
+                  delivery rates are expected to be near 100%.
+                </p>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                {
-                  label: 'Delivery Rate',
-                  desc: 'Fraction of sent messages that were received. Not a measure of protocol success.',
-                },
-                {
-                  label: 'Deal Rate',
-                  desc: 'Percentage of buy requests that resulted in a successful trade. Marketplace/auction only.',
-                },
-                {
-                  label: 'Latency',
-                  desc: 'Mean ticks between send and receive for correlated message pairs.',
-                },
-                {
-                  label: 'Throughput',
-                  desc: 'Messages processed per tick across all agents.',
-                },
-              ].map((metric) => (
-                <div
-                  key={metric.label}
-                  className="rounded-lg border border-warm-200 bg-warm-50/50 p-4"
-                >
-                  <span className="text-sm font-semibold text-warm-900">
-                    {metric.label}
-                  </span>
-                  <p className="mt-1 text-xs text-warm-500">{metric.desc}</p>
+                <div className="mt-8 grid gap-px bg-cream-400/40 border border-cream-400/40 rounded-2xl overflow-hidden sm:grid-cols-2">
+                  {[
+                    {
+                      label: 'Delivery rate',
+                      desc: 'Fraction of sent messages that were received. Not a measure of protocol success.',
+                    },
+                    {
+                      label: 'Deal rate',
+                      desc: 'Percentage of buy requests that resulted in a successful trade. Marketplace and auction only.',
+                    },
+                    {
+                      label: 'Latency',
+                      desc: 'Mean ticks between send and receive for correlated message pairs.',
+                    },
+                    {
+                      label: 'Throughput',
+                      desc: 'Messages processed per tick across all agents.',
+                    },
+                  ].map((m) => (
+                    <div key={m.label} className="bg-cream-50 p-6">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-rust">
+                        {m.label}
+                      </p>
+                      <p className="mt-3 text-[0.9rem] leading-[1.55] text-ink-500">
+                        {m.desc}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           </div>
         </div>

@@ -105,8 +105,10 @@ export function MiniMap({
     return () => clearInterval(tick);
   }, []);
 
-  // 60 Hz repaint so the animated heads move smoothly.
-  const [, setNow] = useState(0);
+  // 60 Hz repaint so the animated heads move smoothly. `now` is read
+  // from state (not directly from performance.now during render) so the
+  // useMemo below stays pure.
+  const [now, setNow] = useState(0);
   useEffect(() => {
     let raf = 0;
     const loop = () => {
@@ -132,7 +134,6 @@ export function MiniMap({
 
   const projectedMessages = useMemo(() => {
     if (!world) return [];
-    const now = performance.now();
     return messages
       .map((m) => {
         const a = world.projection(m.link.from);
@@ -148,15 +149,15 @@ export function MiniMap({
         };
       })
       .filter((m): m is NonNullable<typeof m> => m !== null);
-  }, [messages, world]);
+  }, [messages, world, now]);
 
   return (
     <div
-      className={`relative rounded-2xl border border-warm-200 bg-white p-3 shadow-[0_1px_0_rgba(28,25,23,0.02)] ${className}`}
+      className={`relative rounded-2xl border border-cream-400/70 bg-cream-200 p-3 shadow-[0_1px_0_rgba(20,19,18,0.02)] ${className}`}
     >
       {showChip && (
-        <div className="absolute left-5 top-4 z-10 flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-warm-500">
-          <span className="inline-flex h-1.5 w-1.5 rounded-full bg-crimson animate-pulse-dot" />
+        <div className="absolute left-5 top-4 z-10 flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-ink-400">
+          <span className="inline-flex h-1.5 w-1.5 rounded-full bg-rust animate-pulse-dot" />
           Live
         </div>
       )}
@@ -167,9 +168,9 @@ export function MiniMap({
       >
         <defs>
           <radialGradient id="mini-msg-head" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#8B0000" stopOpacity="0.95" />
-            <stop offset="60%" stopColor="#8B0000" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#8B0000" stopOpacity="0" />
+            <stop offset="0%" stopColor="#C45A3C" stopOpacity="0.95" />
+            <stop offset="60%" stopColor="#C45A3C" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#C45A3C" stopOpacity="0" />
           </radialGradient>
         </defs>
 
@@ -179,8 +180,8 @@ export function MiniMap({
             <path
               key={`mc-${i}`}
               d={world.path(f) || ""}
-              fill="#F5F5F4"
-              stroke="#E7E5E4"
+              fill="#EDE8DA"
+              stroke="#DDD7C5"
               strokeWidth={0.5}
             />
           ))}
@@ -202,9 +203,9 @@ export function MiniMap({
                 y1={m.y1}
                 x2={hx}
                 y2={hy}
-                stroke="#8B0000"
+                stroke="#C45A3C"
                 strokeWidth={0.8}
-                strokeOpacity={0.4}
+                strokeOpacity={0.5}
                 strokeLinecap="round"
               />
               <circle cx={hx} cy={hy} r={2.6} fill="url(#mini-msg-head)" />
@@ -215,8 +216,8 @@ export function MiniMap({
         {/* Cluster dots */}
         {projectedClusters.map((c) => (
           <g key={`mc-${c.city}`}>
-            <circle cx={c.x} cy={c.y} r={7} fill="#8B0000" opacity={0.08} />
-            <circle cx={c.x} cy={c.y} r={2.4} fill="#8B0000" />
+            <circle cx={c.x} cy={c.y} r={7} fill="#C45A3C" opacity={0.12} />
+            <circle cx={c.x} cy={c.y} r={2.4} fill="#C45A3C" />
           </g>
         ))}
       </svg>

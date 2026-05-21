@@ -1,126 +1,121 @@
-import Image from "next/image";
 import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer className="border-t border-warm-200 bg-white">
-      <div className="mx-auto max-w-7xl px-6 py-16">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-          <div className="col-span-2 md:col-span-1">
-            <div className="flex items-center gap-3">
-              <span className="text-lg font-semibold tracking-tight text-warm-900">
-                NEST
-              </span>
-            </div>
-            <p className="mt-4 text-sm leading-6 text-warm-500">
-              Network Environment for Swarm Testing &mdash; a discrete-event
-              testbed for multi-agent protocols.
-            </p>
-            <a
-              href="https://projectnanda.org"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-5 inline-flex items-center gap-2 text-xs text-warm-500 hover:text-warm-900 transition-colors"
+    <footer className="border-t border-cream-400/70 bg-cream-100">
+      <div className="mx-auto max-w-[1240px] px-6 sm:px-10 pt-20 pb-12">
+        <div className="grid gap-12 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+          <div>
+            <Link
+              href="/"
+              className="font-display text-2xl tracking-tight text-ink-900"
             >
-              <Image
-                src="/brand/nanda-logo-color.png"
-                alt="Project NANDA"
-                width={16}
-                height={16}
-                className="rounded-sm"
-              />
-              <span className="uppercase tracking-widest font-medium">
-                Part of Project NANDA
-              </span>
-            </a>
+              n<span className="text-rust">/</span>est
+            </Link>
+            <p className="mt-5 max-w-xs text-[0.95rem] leading-relaxed text-ink-400">
+              A discrete-event testbed for multi-agent protocols.
+              Built at MIT Media Lab as part of Project NANDA.
+            </p>
+            <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300">
+              Apache 2.0 &middot; {new Date().getFullYear()}
+            </p>
           </div>
 
-          <div>
-            <h3 className="text-sm font-semibold text-warm-900">Platform</h3>
-            <ul className="mt-4 space-y-3">
-              <li>
-                <Link href="/experiments" className="text-sm text-warm-500 hover:text-warm-900 transition-colors">
-                  Experiments
-                </Link>
-              </li>
-              <li>
-                <Link href="/leaderboard" className="text-sm text-warm-500 hover:text-warm-900 transition-colors">
-                  Leaderboard
-                </Link>
-              </li>
-              <li>
-                <Link href="/visualizer" className="text-sm text-warm-500 hover:text-warm-900 transition-colors">
-                  Visualizer
-                </Link>
-              </li>
-            </ul>
-          </div>
+          <FooterColumn title="Platform">
+            <FooterLink href="/agents">Agents</FooterLink>
+            <FooterLink href="/experiments">Experiments</FooterLink>
+            <FooterLink href="/leaderboard">Leaderboard</FooterLink>
+            <FooterLink href="/visualizer">Visualizer</FooterLink>
+          </FooterColumn>
 
-          <div>
-            <h3 className="text-sm font-semibold text-warm-900">Resources</h3>
-            <ul className="mt-4 space-y-3">
-              <li>
-                <Link href="/docs" className="text-sm text-warm-500 hover:text-warm-900 transition-colors">
-                  Documentation
-                </Link>
-              </li>
-              <li>
-                <a
-                  href="https://github.com/mariagorskikh/nest"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-warm-500 hover:text-warm-900 transition-colors"
-                >
-                  GitHub
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://projectnanda.org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-warm-500 hover:text-warm-900 transition-colors"
-                >
-                  Project NANDA
-                </a>
-              </li>
-            </ul>
-          </div>
+          <FooterColumn title="Resources">
+            <FooterLink href="/docs">Documentation</FooterLink>
+            <FooterLink href="https://github.com/mariagorskikh/nest" external>
+              GitHub
+            </FooterLink>
+            <FooterLink href="https://projectnanda.org" external>
+              Project NANDA
+            </FooterLink>
+          </FooterColumn>
 
-          <div>
-            <h3 className="text-sm font-semibold text-warm-900">Community</h3>
-            <ul className="mt-4 space-y-3">
-              <li>
-                <a
-                  href="https://github.com/mariagorskikh/nest/issues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-warm-500 hover:text-warm-900 transition-colors"
-                >
-                  Report a Bug
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://github.com/mariagorskikh/nest/discussions"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-warm-500 hover:text-warm-900 transition-colors"
-                >
-                  Discussions
-                </a>
-              </li>
-            </ul>
-          </div>
+          <FooterColumn title="Community">
+            <FooterLink
+              href="https://github.com/mariagorskikh/nest/issues"
+              external
+            >
+              Report an issue
+            </FooterLink>
+            <FooterLink
+              href="https://github.com/mariagorskikh/nest/discussions"
+              external
+            >
+              Discussions
+            </FooterLink>
+          </FooterColumn>
         </div>
 
-        <div className="mt-12 border-t border-warm-200 pt-8">
-          <p className="text-sm text-warm-400">
-            &copy; {new Date().getFullYear()} NEST &mdash; Apache 2.0 License.
-            Built at MIT Media Lab.
+        <div className="mt-16 border-t border-cream-400/70 pt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[0.8rem] text-ink-300">
+            &copy; {new Date().getFullYear()} NEST · An open testbed for the
+            agentic web.
+          </p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300">
+            Made at MIT Media Lab
           </p>
         </div>
       </div>
     </footer>
+  );
+}
+
+function FooterColumn({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-ink-300">
+        {title}
+      </h3>
+      <ul className="mt-5 space-y-3">{children}</ul>
+    </div>
+  );
+}
+
+function FooterLink({
+  href,
+  external,
+  children,
+}: {
+  href: string;
+  external?: boolean;
+  children: React.ReactNode;
+}) {
+  if (external) {
+    return (
+      <li>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[0.95rem] text-ink-500 hover:text-ink-900 transition-colors"
+        >
+          {children}
+        </a>
+      </li>
+    );
+  }
+  return (
+    <li>
+      <Link
+        href={href}
+        className="text-[0.95rem] text-ink-500 hover:text-ink-900 transition-colors"
+      >
+        {children}
+      </Link>
+    </li>
   );
 }
