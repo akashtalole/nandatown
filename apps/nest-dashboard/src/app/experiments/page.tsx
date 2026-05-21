@@ -48,6 +48,39 @@ const scenarioImagePrompts: Record<string, string> = {
     'Abstract field of warm orange dots of varying opacity on cream, some clustered tightly, some isolated, suggesting reputation drift. Subtle paper grain, ink-wash style. Palette #F0EDE4, #C45A3C, #221F1A.',
 };
 
+/* ------------------------------------------------------------------
+ *  Per-scenario illustration assets and accessible descriptions.
+ *  Files live in /public/illustrations/. Each card pulls its image
+ *  from this map; if a scenario is missing here, the ImagePlaceholder
+ *  falls back to its prompt-overlay placeholder mode.
+ * ------------------------------------------------------------------ */
+const scenarioImages: Record<string, { src: string; alt: string }> = {
+  marketplace: {
+    src: '/illustrations/img_05_marketplace.png',
+    alt: 'Warm rust circles trading positions with cream squares on beige paper — geometry of an open-air market.',
+  },
+  auction: {
+    src: '/illustrations/img_06_auction.png',
+    alt: 'A vertical stack of folded warm-orange paper rectangles on cream, only one slightly larger — sealed-bid auction.',
+  },
+  voting: {
+    src: '/illustrations/img_07_voting.png',
+    alt: 'Small rust-orange dots gathering toward a centroid on cream paper, like iron filings to a magnet.',
+  },
+  consensus: {
+    src: '/illustrations/img_08_consensus.png',
+    alt: 'Concentric circles of warm orange ink radiating outward across cream paper.',
+  },
+  supply_chain: {
+    src: '/illustrations/img_09_supply_chain.png',
+    alt: 'Horizontal pipeline of four warm rust nodes connected by hand-drawn cream-paper lines with watercolour bloom at each node.',
+  },
+  reputation: {
+    src: '/illustrations/img_10_reputation.png',
+    alt: 'Field of warm-orange dots of varying opacity on cream paper, some clustered tightly, some isolated — reputation drift.',
+  },
+};
+
 const yamlSnippets: Record<string, string> = {
   marketplace: `scenario: marketplace
 agents:
@@ -189,6 +222,7 @@ export default function ExperimentsPage() {
               const prompt =
                 scenarioImagePrompts[exp.scenario] ??
                 'Abstract editorial illustration in warm cream and rust.';
+              const image = scenarioImages[exp.scenario];
 
               return (
                 <article
@@ -199,6 +233,9 @@ export default function ExperimentsPage() {
                     id={exp.id.slice(0, 4).toUpperCase()}
                     ratio="16/10"
                     prompt={prompt}
+                    src={image?.src}
+                    alt={image?.alt}
+                    sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                     className="-mb-px"
                   />
 
@@ -346,6 +383,9 @@ export default function ExperimentsPage() {
             <ImagePlaceholder
               id="D"
               ratio="4/5"
+              src="/illustrations/img_04_experiments.png"
+              alt="Stacked YAML-like horizontal lines flowing into a single warm rust beam of light on cream paper, with slight ink bleed."
+              sizes="(min-width: 1024px) 40vw, 100vw"
               prompt="Abstract illustration of stacked YAML-like horizontal lines flowing into a single warm rust beam of light on cream paper. Slight ink bleed at the edges, hand-drawn feel. Editorial science aesthetic. Palette #F0EDE4, #C45A3C, #221F1A."
               caption="Image — run your own"
             />

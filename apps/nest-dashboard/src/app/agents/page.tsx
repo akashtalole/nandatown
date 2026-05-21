@@ -527,6 +527,9 @@ export default function AgentsPage() {
           <ImagePlaceholder
             id="C"
             ratio="4/5"
+            src="/illustrations/img_03_constellations.png"
+            alt="Aerial-view scatter of warm rust-orange dots on cream paper, joined by faint orange threads forming organic constellations."
+            sizes="(min-width: 1024px) 40vw, 100vw"
             prompt="Abstract aerial-view composition of warm rust-orange dots scattered across cream paper, connected by faint orange threads forming organic constellations. Hand-drawn, ink-and-wash feel. Soft cream background #F0EDE4, accent rust #C45A3C, hints of warm brown. No text, no characters, no logos."
             caption="Section divider — agent constellations"
           />

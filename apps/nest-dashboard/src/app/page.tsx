@@ -262,6 +262,10 @@ export default function Home() {
             <ImagePlaceholder
               id="A"
               ratio="4/5"
+              src="/illustrations/img_01_home_hero.png"
+              alt="Abstract organic mesh of fine rust-orange lines and faint nodes drifting across a cream paper background — an ink-and-wash topographic map of an agent network."
+              priority
+              sizes="(min-width: 1024px) 50vw, 100vw"
               prompt="Abstract organic mesh of fine hand-drawn warm rust-orange lines flowing across a soft cream paper background. Sparse nodes where lines intersect, like a topographic map of an agent network. Editorial, calm, hand-illustrated feel. Subtle paper grain. Color palette: cream #F0EDE4, rust #C45A3C, warm black #141312. No text, no characters."
               caption="Hero — agent topology"
             />
@@ -270,6 +274,9 @@ export default function Home() {
               <ImagePlaceholder
                 id="B"
                 ratio="5/4"
+                src="/illustrations/img_02_protocol_stacks.png"
+                alt="Layered translucent warm-orange and beige rectangles overlapping like protocol stacks on a cream paper background."
+                sizes="(min-width: 1024px) 42vw, 100vw"
                 prompt="Abstract composition of overlapping translucent warm orange and beige rectangles, layered like protocol stacks. Slight rotation, hand-cut paper aesthetic, subtle drop shadows. Each rectangle is a different shade of cream/rust. Quiet, editorial, scientific-but-warm. No text. Palette: #F0EDE4, #E8E4D6, #C45A3C, #6B6557."
                 caption="Section — the twelve layers"
               />
