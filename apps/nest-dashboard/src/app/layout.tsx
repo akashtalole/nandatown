@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     "An open sandbox for testing agent protocols at scale. NEST by Project NANDA.",
   icons: {
     icon: [
-      { url: "/brand/nest-logo.png", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
       { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
     ],
