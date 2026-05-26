@@ -72,6 +72,7 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
+from typing import cast
 
 from nest_core.sim.network import NetworkModel
 from nest_core.types import AgentId, TransportCapabilities
@@ -177,25 +178,30 @@ class RealisticNetwork:
         links: dict[tuple[str, str], LinkConfig] = {}
         raw_links = config.get("links")
         if isinstance(raw_links, list):
-            for item in raw_links:
+            # cast: ``config`` is dict[str, object]; ``list`` widens its items
+            # back to Unknown for pyright. Treat each item as ``object`` and
+            # rely on ``isinstance`` checks below.
+            raw_links_list = cast("list[object]", raw_links)
+            for item in raw_links_list:
                 if not isinstance(item, dict):
                     continue
-                src = item.get("from")
-                dst = item.get("to")
+                item_dict = cast("dict[object, object]", item)
+                src = item_dict.get("from")
+                dst = item_dict.get("to")
                 if not isinstance(src, str) or not isinstance(dst, str):
                     continue
                 links[(src, dst)] = LinkConfig(
-                    base_latency_ms=_opt_float(item.get("base_latency_ms")),
-                    jitter_sigma=_opt_float(item.get("jitter_sigma")),
-                    bandwidth_bps=_opt_float(item.get("bandwidth_bps")),
-                    loss_rate=_opt_float(item.get("loss_rate")),
+                    base_latency_ms=_opt_float(item_dict.get("base_latency_ms")),
+                    jitter_sigma=_opt_float(item_dict.get("jitter_sigma")),
+                    bandwidth_bps=_opt_float(item_dict.get("bandwidth_bps")),
+                    loss_rate=_opt_float(item_dict.get("loss_rate")),
                 )
         return cls(
-            base_latency_ms=float(config.get("base_latency_ms", 5.0)),  # type: ignore[arg-type]
-            jitter_sigma=float(config.get("jitter_sigma", 0.3)),  # type: ignore[arg-type]
-            bandwidth_bps=float(config.get("bandwidth_bps", 100_000_000.0)),  # type: ignore[arg-type]
-            max_queue_bytes=int(config.get("max_queue_bytes", 10_000_000)),  # type: ignore[arg-type]
-            loss_rate=float(config.get("loss_rate", 0.0)),  # type: ignore[arg-type]
+            base_latency_ms=_cfg_float(config.get("base_latency_ms"), 5.0),
+            jitter_sigma=_cfg_float(config.get("jitter_sigma"), 0.3),
+            bandwidth_bps=_cfg_float(config.get("bandwidth_bps"), 100_000_000.0),
+            max_queue_bytes=_cfg_int(config.get("max_queue_bytes"), 10_000_000),
+            loss_rate=_cfg_float(config.get("loss_rate"), 0.0),
             links=links,
         )
 
@@ -301,10 +307,36 @@ _proto_check: type[NetworkModel] = RealisticNetwork  # noqa: F841
 def _opt_float(v: object) -> float | None:
     if v is None:
         return None
-    try:
-        return float(v)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        try:
+            return float(v)
+        except ValueError:
+            return None
+    return None
+
+
+def _cfg_float(v: object, default: float) -> float:
+    parsed = _opt_float(v)
+    return default if parsed is None else parsed
+
+
+def _cfg_int(v: object, default: int) -> int:
+    if v is None:
+        return default
+    if isinstance(v, bool):
+        return default
+    if isinstance(v, int):
+        return v
+    if isinstance(v, float):
+        return int(v)
+    if isinstance(v, str):
+        try:
+            return int(v)
+        except ValueError:
+            return default
+    return default
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +352,11 @@ class _Pending:
     sender: AgentId
     payload: bytes
     seq: int
+
+
+# Public type alias so callers (and tests) can name the bus payload type
+# without reaching into private symbols.
+PendingMessage = _Pending
 
 
 class RealisticTransport:

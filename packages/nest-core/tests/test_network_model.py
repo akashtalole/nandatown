@@ -13,6 +13,7 @@ Verifies that:
 from __future__ import annotations
 
 import json
+import math
 import random
 from pathlib import Path
 from typing import Any
@@ -133,7 +134,7 @@ class TestLatencyAdvancesClock:
         # For each correlation_id, receive.ts should be send.ts + 0.5.
         send_by_corr = {e["corr"]: e["ts"] for e in sends}
         for r in receives:
-            assert r["ts"] == pytest.approx(send_by_corr[r["corr"]] + 0.5, abs=1e-9)
+            assert math.isclose(r["ts"], send_by_corr[r["corr"]] + 0.5, abs_tol=1e-9)
 
 
 class TestNetworkDrop:
@@ -180,7 +181,7 @@ class TestDeterminism:
     async def test_same_seed_same_trace(self, tmp_path: Path) -> None:
         from nest_plugins_reference.transport.realistic import RealisticNetwork
 
-        traces = []
+        traces: list[str] = []
         for run_idx in range(2):
             trace = tmp_path / f"out{run_idx}.jsonl"
             sim = Simulator(

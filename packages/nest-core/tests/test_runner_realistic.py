@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -212,7 +213,7 @@ class TestRealisticTransportWiring:
             ["mean_latency", "throughput", "duration", "message_count"],
         )
         # Base latency 50 ms + a negligible serialization delay at 1 Tbps.
-        assert m["mean_latency"] == pytest.approx(0.050, abs=1e-3)
+        assert math.isclose(m["mean_latency"], 0.050, abs_tol=1e-3)
         assert m["mean_latency"] >= 0.050
         assert m["duration"] > 0
         assert m["throughput"] > 0

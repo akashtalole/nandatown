@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 import statistics
 
@@ -11,9 +12,21 @@ from nest_core.sim.network import NetworkModel, ZeroLatencyNetworkModel
 from nest_core.types import AgentId
 from nest_plugins_reference.transport.realistic import (
     LinkConfig,
+    PendingMessage,
     RealisticNetwork,
     RealisticTransport,
 )
+
+
+def _close(actual: float | None, expected: float, *, abs_tol: float = 1e-9) -> bool:
+    """Pyright-friendly replacement for ``pytest.approx(...)``.
+
+    pytest's ``approx`` returns an ``ApproxBase`` with loosely typed members
+    that pyright flags as ``Unknown`` under ``strict``. ``math.isclose`` is
+    fully typed and equivalent for the numeric comparisons we do here.
+    """
+    return actual is not None and math.isclose(actual, expected, abs_tol=abs_tol)
+
 
 A1 = AgentId("a1")
 A2 = AgentId("a2")
@@ -80,7 +93,7 @@ class TestLatency:
             loss_rate=0.0,
         )
         t = net.schedule(A1, A2, 1, 0.0, random.Random(0))
-        assert t == pytest.approx(0.010, abs=1e-9)
+        assert _close(t, 0.010)
 
     def test_serialization_delay(self) -> None:
         # 1 Mbps, 1000 bytes => 8 ms transmission delay, plus 5 ms base.
@@ -91,7 +104,7 @@ class TestLatency:
             loss_rate=0.0,
         )
         t = net.schedule(A1, A2, 1000, 0.0, random.Random(0))
-        assert t == pytest.approx(0.005 + 0.008, abs=1e-9)
+        assert _close(t, 0.005 + 0.008)
 
     def test_jitter_produces_spread(self) -> None:
         rng = random.Random(123)
@@ -130,8 +143,8 @@ class TestLatency:
             links={(str(A1), str(A2)): LinkConfig(base_latency_ms=200.0)},
         )
         t_fast = net2.schedule(A1, A3, 1, 0.0, random.Random(0))
-        assert t_slow == pytest.approx(0.200, abs=1e-9)
-        assert t_fast == pytest.approx(0.005, abs=1e-9)
+        assert _close(t_slow, 0.200)
+        assert _close(t_fast, 0.005)
 
 
 # ---------------------------------------------------------------------------
@@ -153,9 +166,9 @@ class TestQueueing:
         t1 = net.schedule(A1, A2, 1000, 0.0, rng)
         t2 = net.schedule(A1, A2, 1000, 0.0, rng)
         t3 = net.schedule(A1, A2, 1000, 0.0, rng)
-        assert t1 == pytest.approx(0.008, abs=1e-9)
-        assert t2 == pytest.approx(0.016, abs=1e-9)
-        assert t3 == pytest.approx(0.024, abs=1e-9)
+        assert _close(t1, 0.008)
+        assert _close(t2, 0.016)
+        assert _close(t3, 0.024)
 
     def test_idle_link_drains(self) -> None:
         # If the simulation clock moves past busy_until, queueing resets.
@@ -167,10 +180,10 @@ class TestQueueing:
         )
         rng = random.Random(0)
         t1 = net.schedule(A1, A2, 1000, 0.0, rng)
-        assert t1 == pytest.approx(0.008, abs=1e-9)
+        assert _close(t1, 0.008)
         # Big gap — link goes idle. Next send should not stack on top.
         t2 = net.schedule(A1, A2, 1000, 1.0, rng)
-        assert t2 == pytest.approx(1.008, abs=1e-9)
+        assert _close(t2, 1.008)
 
     def test_per_sender_queues_are_independent(self) -> None:
         # A1 and A3 both target A2, but each has its own egress queue.
@@ -183,8 +196,8 @@ class TestQueueing:
         rng = random.Random(0)
         t_a1 = net.schedule(A1, A2, 1000, 0.0, rng)
         t_a3 = net.schedule(A3, A2, 1000, 0.0, rng)
-        assert t_a1 == pytest.approx(0.008, abs=1e-9)
-        assert t_a3 == pytest.approx(0.008, abs=1e-9)
+        assert _close(t_a1, 0.008)
+        assert _close(t_a3, 0.008)
 
     def test_queue_overflow_drops(self) -> None:
         # Tiny cap: 1500-byte budget. First 1000 fits; second 1000 overflows.
@@ -309,7 +322,7 @@ class TestFromConfig:
             }
         )
         t = net.schedule(A1, A2, 1, 0.0, random.Random(0))
-        assert t == pytest.approx(0.100, abs=1e-9)
+        assert _close(t, 0.100)
 
     def test_ignores_malformed_link(self) -> None:
         net = RealisticNetwork.from_config(
@@ -321,7 +334,7 @@ class TestFromConfig:
             },  # missing 'to'
         )
         t = net.schedule(A1, A2, 1, 0.0, random.Random(0))
-        assert t == pytest.approx(0.002, abs=1e-9)
+        assert _close(t, 0.002)
 
 
 # ---------------------------------------------------------------------------
@@ -338,7 +351,7 @@ class TestStandaloneTransport:
             bandwidth_bps=1e12,
             loss_rate=0.0,
         )
-        bus: dict[AgentId, list] = {}
+        bus: dict[AgentId, list[PendingMessage]] = {}
         t1 = RealisticTransport(A1, net, bus, rng=random.Random(0))
         t2 = RealisticTransport(A2, net, bus, rng=random.Random(0))
 
@@ -358,7 +371,7 @@ class TestStandaloneTransport:
     @pytest.mark.asyncio
     async def test_drop_returns_false(self) -> None:
         net = RealisticNetwork(loss_rate=1.0)
-        bus: dict[AgentId, list] = {}
+        bus: dict[AgentId, list[PendingMessage]] = {}
         t1 = RealisticTransport(A1, net, bus, rng=random.Random(0))
         # registering t2 so the bus knows about it
         RealisticTransport(A2, net, bus, rng=random.Random(0))
@@ -374,7 +387,7 @@ class TestStandaloneTransport:
             bandwidth_bps=1e12,
             loss_rate=0.0,
         )
-        bus: dict[AgentId, list] = {}
+        bus: dict[AgentId, list[PendingMessage]] = {}
         t1 = RealisticTransport(A1, net, bus, rng=random.Random(0))
         RealisticTransport(A2, net, bus, rng=random.Random(0))
         RealisticTransport(A3, net, bus, rng=random.Random(0))
@@ -384,7 +397,7 @@ class TestStandaloneTransport:
 
     def test_clock_cannot_go_backwards(self) -> None:
         net = RealisticNetwork()
-        bus: dict[AgentId, list] = {}
+        bus: dict[AgentId, list[PendingMessage]] = {}
         t1 = RealisticTransport(A1, net, bus, clock=5.0)
         with pytest.raises(ValueError, match="backwards"):
             t1.advance(3.0)
