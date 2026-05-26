@@ -83,19 +83,34 @@ def test_load_scores_returns_empty_dict_on_non_object_root(tmp_path: Path) -> No
 
 
 def test_load_scores_parses_valid_breakdown(tmp_path: Path) -> None:
+    """The judge panel writes scores.json in the PR #14 scoreboard shape:
+    `{version, generated_at, mock, submissions: [{pr, scores: {...},
+    median, consensus, ...}]}`. ``load_scores`` projects it into
+    ``{pr_number: JudgeScore}`` for the marketplace."""
+
     path = tmp_path / "scores.json"
     path.write_text(
         json.dumps(
             {
-                "11": {
-                    "correctness": 8.5,
-                    "realism": 7,
-                    "design": 8,
-                    "docs": 6,
-                    "total": 7.6,
-                    "notes": "Solid SRE framing.",
-                },
-                "ignored": "not-an-object",
+                "version": 1,
+                "generated_at": "2026-05-26T20:00:00+00:00",
+                "mock": True,
+                "submissions": [
+                    {
+                        "pr": 11,
+                        "scores": {
+                            "correctness": 4.0,
+                            "test_rigor": 3.0,
+                            "api_fit": 4.0,
+                            "docs_quality": 5.0,
+                            "novelty": 3.0,
+                            "persona_fidelity": 4.0,
+                        },
+                        "median": 23.0,
+                        "consensus": "Solid SRE framing.",
+                    },
+                    "ignored-non-object",
+                ],
             }
         ),
         encoding="utf-8",
@@ -103,9 +118,27 @@ def test_load_scores_parses_valid_breakdown(tmp_path: Path) -> None:
     scores = load_scores(path)
     assert set(scores.keys()) == {"11"}
     s = scores["11"]
-    assert s.total == 7.6
-    assert s.correctness == 8.5
+    assert s.total == 23.0  # canonical median, in [6, 30]
+    assert s.correctness == 4.0
+    assert s.test_rigor == 3.0
+    assert s.api_fit == 4.0
+    assert s.docs_quality == 5.0
+    assert s.novelty == 3.0
+    assert s.persona_fidelity == 4.0
     assert s.notes == "Solid SRE framing."
+
+
+def test_load_scores_ignores_unknown_top_level_shape(tmp_path: Path) -> None:
+    """An old-style flat ``{<pr>: {...}}`` file (the schema-drift case
+    this module guards against) should degrade to an empty mapping
+    rather than smuggling stale per-dim numbers into the UI."""
+
+    path = tmp_path / "scores.json"
+    path.write_text(
+        json.dumps({"11": {"correctness": 8.5, "total": 7.6}}),
+        encoding="utf-8",
+    )
+    assert load_scores(path) == {}
 
 
 # ---------------------------------------------------------------------------
@@ -203,15 +236,15 @@ def test_parse_pull_requests_tags_agent_vs_human() -> None:
 
 
 def test_parse_pull_requests_attaches_scores_by_pr_number() -> None:
-    scores = load_scores(None)
     # Build a tiny inline scores mapping via the same dataclass.
     from nest_marketplace.adapter import JudgeScore
 
-    scores = {"7": JudgeScore(total=9.1, correctness=9.0)}
+    scores = {"7": JudgeScore(total=21.0, correctness=4.0)}
     prs = [_pr(7, branch="hackathon/coinbase-crypto-htlc-escrow")]
     [sub] = parse_pull_requests(prs, scores)
     assert sub.score is not None
-    assert sub.score.total == 9.1
+    assert sub.score.total == 21.0
+    assert sub.score.correctness == 4.0
 
 
 def test_build_dataset_aggregates_layer_stats_and_top_score() -> None:
@@ -222,10 +255,12 @@ def test_build_dataset_aggregates_layer_stats_and_top_score() -> None:
         _pr(6, branch="hackathon/stanford-ml-phd-eigentrust", additions=300),
         _pr(7, branch="hackathon/coinbase-crypto-htlc-escrow", additions=500),
     ]
+    # `total` is the canonical median in [6, 30] — same number the judge
+    # panel writes as `median` to scores.json.
     scores = {
-        "3": JudgeScore(total=6.5),
-        "6": JudgeScore(total=8.9),
-        "7": JudgeScore(total=7.2),
+        "3": JudgeScore(total=19.0),
+        "6": JudgeScore(total=27.0),
+        "7": JudgeScore(total=22.0),
     }
     ds = build_dataset(prs, scores, generated_at="t")
 
@@ -238,9 +273,9 @@ def test_build_dataset_aggregates_layer_stats_and_top_score() -> None:
     layer_map = {ls.key: ls for ls in ds.layers}
     assert set(layer_map.keys()) == set(KNOWN_LAYERS)
     assert layer_map["trust"].submission_count == 2
-    assert layer_map["trust"].top_score == 8.9
+    assert layer_map["trust"].top_score == 27.0
     assert layer_map["payments"].submission_count == 1
-    assert layer_map["payments"].top_score == 7.2
+    assert layer_map["payments"].top_score == 22.0
     assert layer_map["privacy"].is_open is True
     assert layer_map["privacy"].submission_count == 0
 

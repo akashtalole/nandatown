@@ -14,6 +14,8 @@ import {
   formatScore,
   loadDataset,
   SCORE_DIMENSIONS,
+  SCORE_DIMENSION_MAX,
+  SCORE_TOTAL_MAX,
   type ScoreDimension,
 } from "@/lib/hackathon";
 import { AuthorBadge } from "@/components/hackathon-card";
@@ -47,13 +49,18 @@ function ScoreBar({
   label: string;
   value: number | null;
 }) {
-  const width = value === null ? 0 : Math.min(100, (value / 10) * 100);
+  // Dimensions are scored 1-5 per the rubric in scripts/judge/rubric.md;
+  // the bar fills proportionally against SCORE_DIMENSION_MAX (5).
+  const width =
+    value === null
+      ? 0
+      : Math.min(100, Math.max(0, (value / SCORE_DIMENSION_MAX) * 100));
   return (
     <div>
       <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-ink-400">
         <span>{label}</span>
         <span className="tabular-nums text-ink-900">
-          {value === null ? "—" : value.toFixed(1)}
+          {value === null ? "—" : `${value.toFixed(0)}/${SCORE_DIMENSION_MAX}`}
         </span>
       </div>
       <div className="mt-2 h-1 w-full rounded-full bg-cream-300 overflow-hidden">
@@ -192,7 +199,7 @@ export default async function SubmissionPage({
                   <span className="tabular-nums">
                     {formatScore(totalScore)}
                   </span>
-                  <span className="text-ink-300"> / 10</span>
+                  <span className="text-ink-300"> / {SCORE_TOTAL_MAX}</span>
                 </>
               ) : (
                 <span className="italic text-ink-400">unscored</span>

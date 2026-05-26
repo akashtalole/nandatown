@@ -7,7 +7,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Submission } from "@/lib/hackathon-types";
-import { formatLinesAdded, formatScore } from "@/lib/hackathon-types";
+import {
+  formatLinesAdded,
+  formatScore,
+  SCORE_TOTAL_MAX,
+} from "@/lib/hackathon-types";
 
 export function AuthorBadge({ submission }: { submission: Submission }) {
   const isAgent = submission.tag === "agent-authored";
@@ -43,7 +47,7 @@ export function ScoreBadge({ submission }: { submission: Submission }) {
       }
       title={
         total !== null
-          ? `Judge score: ${formatScore(total)} / 10`
+          ? `Judge score: ${formatScore(total)} / ${SCORE_TOTAL_MAX}`
           : "Unscored — judging in progress"
       }
     >

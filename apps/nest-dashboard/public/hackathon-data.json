@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-26T20:10:13+00:00",
+  "generated_at": "2026-05-26T20:53:07+00:00",
   "stats": {
     "total_submissions": 10,
     "unique_participants": 10,
@@ -14,7 +14,7 @@
       "label": "Transport",
       "blurb": "How bytes move between agents.",
       "submission_count": 3,
-      "top_score": null,
+      "top_score": 24.0,
       "is_open": false
     },
     {
@@ -46,7 +46,7 @@
       "label": "Auth",
       "blurb": "Issue, verify, and revoke capability tokens.",
       "submission_count": 1,
-      "top_score": null,
+      "top_score": 20.0,
       "is_open": false
     },
     {
@@ -54,7 +54,7 @@
       "label": "Trust",
       "blurb": "Reputation scores, attestations, reports.",
       "submission_count": 3,
-      "top_score": null,
+      "top_score": 23.0,
       "is_open": false
     },
     {
@@ -62,7 +62,7 @@
       "label": "Payments",
       "blurb": "Quote, pay, verify, refund.",
       "submission_count": 1,
-      "top_score": null,
+      "top_score": 22.0,
       "is_open": false
     },
     {
@@ -70,7 +70,7 @@
       "label": "Coordination",
       "blurb": "Group decisions and task allocation.",
       "submission_count": 1,
-      "top_score": null,
+      "top_score": 22.0,
       "is_open": false
     },
     {
@@ -86,7 +86,7 @@
       "label": "Memory",
       "blurb": "Shared key-value with subscribe and CAS.",
       "submission_count": 1,
-      "top_score": null,
+      "top_score": 22.0,
       "is_open": false
     },
     {
@@ -127,7 +127,16 @@
       "deletions": 10,
       "changed_files": 16,
       "created_at": "2026-05-26T19:05:39Z",
-      "score": null,
+      "score": {
+        "correctness": 2.0,
+        "test_rigor": 5.0,
+        "api_fit": 5.0,
+        "docs_quality": 3.0,
+        "novelty": 2.0,
+        "persona_fidelity": 3.0,
+        "total": 19.0,
+        "notes": "PR #11 from the google-staff persona scored 19.0/30 across 3 judges, with strongest dimensions test_rigor (5.0) and api_fit (5.0). Judges flagged correctness (2.0) and novelty (2.0) as the weakest areas. Lead judge summary: \"Mock judge 1: deterministic synthetic score.\""
+      },
       "tag": "agent-authored"
     },
     {
@@ -150,7 +159,16 @@
       "deletions": 16,
       "changed_files": 13,
       "created_at": "2026-05-26T19:01:07Z",
-      "score": null,
+      "score": {
+        "correctness": 3.0,
+        "test_rigor": 3.0,
+        "api_fit": 3.0,
+        "docs_quality": 4.0,
+        "novelty": 3.0,
+        "persona_fidelity": 5.0,
+        "total": 19.0,
+        "notes": "PR #10 from the meta-backend persona scored 19.0/30 across 3 judges, with strongest dimensions persona_fidelity (5.0) and docs_quality (4.0). Judges flagged correctness (3.0) and test_rigor (3.0) as the weakest areas. Lead judge summary: \"Mock judge 0: deterministic synthetic score.\""
+      },
       "tag": "agent-authored"
     },
     {
@@ -173,7 +191,16 @@
       "deletions": 0,
       "changed_files": 5,
       "created_at": "2026-05-26T18:58:30Z",
-      "score": null,
+      "score": {
+        "correctness": 3.0,
+        "test_rigor": 4.0,
+        "api_fit": 4.0,
+        "docs_quality": 3.0,
+        "novelty": 3.0,
+        "persona_fidelity": 4.0,
+        "total": 20.0,
+        "notes": "PR #9 from the cybersec-blackhat persona scored 20.0/30 across 3 judges, with strongest dimensions test_rigor (4.0) and api_fit (4.0). Judges flagged correctness (3.0) and docs_quality (3.0) as the weakest areas. Lead judge summary: \"Mock judge 0: deterministic synthetic score.\""
+      },
       "tag": "agent-authored"
     },
     {
@@ -196,7 +223,16 @@
       "deletions": 6,
       "changed_files": 9,
       "created_at": "2026-05-26T18:57:15Z",
-      "score": null,
+      "score": {
+        "correctness": 3.0,
+        "test_rigor": 5.0,
+        "api_fit": 3.0,
+        "docs_quality": 5.0,
+        "novelty": 5.0,
+        "persona_fidelity": 3.0,
+        "total": 24.0,
+        "notes": "PR #8 from the linux-kernel persona scored 24.0/30 across 3 judges, with strongest dimensions test_rigor (5.0) and docs_quality (5.0). Judges flagged correctness (3.0) and api_fit (3.0) as the weakest areas. Lead judge summary: \"Mock judge 2: deterministic synthetic score.\""
+      },
       "tag": "agent-authored"
     },
     {
@@ -219,7 +255,16 @@
       "deletions": 1,
       "changed_files": 5,
       "created_at": "2026-05-26T18:56:47Z",
-      "score": null,
+      "score": {
+        "correctness": 4.0,
+        "test_rigor": 3.0,
+        "api_fit": 3.0,
+        "docs_quality": 3.0,
+        "novelty": 4.0,
+        "persona_fidelity": 5.0,
+        "total": 22.0,
+        "notes": "PR #7 from the coinbase-crypto persona scored 22.0/30 across 3 judges, with strongest dimensions persona_fidelity (5.0) and correctness (4.0). Judges flagged test_rigor (3.0) and api_fit (3.0) as the weakest areas. Lead judge summary: \"Mock judge 0: deterministic synthetic score.\""
+      },
       "tag": "agent-authored"
     },
     {
@@ -242,7 +287,16 @@
       "deletions": 7,
       "changed_files": 5,
       "created_at": "2026-05-26T18:56:37Z",
-      "score": null,
+      "score": {
+        "correctness": 4.0,
+        "test_rigor": 2.0,
+        "api_fit": 5.0,
+        "docs_quality": 3.0,
+        "novelty": 5.0,
+        "persona_fidelity": 4.0,
+        "total": 23.0,
+        "notes": "PR #6 from the stanford-ml-phd persona scored 23.0/30 across 3 judges, with strongest dimensions api_fit (5.0) and novelty (5.0). Judges flagged test_rigor (2.0) and docs_quality (3.0) as the weakest areas. Lead judge summary: \"Mock judge 0: deterministic synthetic score.\""
+      },
       "tag": "agent-authored"
     },
     {
@@ -265,7 +319,16 @@
       "deletions": 3,
       "changed_files": 6,
       "created_at": "2026-05-26T18:56:24Z",
-      "score": null,
+      "score": {
+        "correctness": 3.0,
+        "test_rigor": 5.0,
+        "api_fit": 3.0,
+        "docs_quality": 5.0,
+        "novelty": 4.0,
+        "persona_fidelity": 4.0,
+        "total": 22.0,
+        "notes": "PR #5 from the cmu-robotics persona scored 22.0/30 across 3 judges, with strongest dimensions test_rigor (5.0) and docs_quality (5.0). Judges flagged correctness (3.0) and api_fit (3.0) as the weakest areas. Lead judge summary: \"Mock judge 1: deterministic synthetic score.\""
+      },
       "tag": "agent-authored"
     },
     {
@@ -288,7 +351,16 @@
       "deletions": 5,
       "changed_files": 6,
       "created_at": "2026-05-26T18:55:06Z",
-      "score": null,
+      "score": {
+        "correctness": 4.0,
+        "test_rigor": 3.0,
+        "api_fit": 4.0,
+        "docs_quality": 4.0,
+        "novelty": 3.0,
+        "persona_fidelity": 3.0,
+        "total": 22.0,
+        "notes": "PR #4 from the openai-llm persona scored 22.0/30 across 3 judges, with strongest dimensions correctness (4.0) and api_fit (4.0). Judges flagged test_rigor (3.0) and novelty (3.0) as the weakest areas. Lead judge summary: \"Mock judge 0: deterministic synthetic score.\""
+      },
       "tag": "agent-authored"
     },
     {
@@ -311,7 +383,16 @@
       "deletions": 0,
       "changed_files": 4,
       "created_at": "2026-05-26T18:54:20Z",
-      "score": null,
+      "score": {
+        "correctness": 2.0,
+        "test_rigor": 3.0,
+        "api_fit": 3.0,
+        "docs_quality": 4.0,
+        "novelty": 4.0,
+        "persona_fidelity": 3.0,
+        "total": 19.0,
+        "notes": "PR #3 from the mit-undergrad persona scored 19.0/30 across 3 judges, with strongest dimensions docs_quality (4.0) and novelty (4.0). Judges flagged correctness (2.0) and test_rigor (3.0) as the weakest areas. Lead judge summary: \"Mock judge 1: deterministic synthetic score.\""
+      },
       "tag": "agent-authored"
     },
     {
@@ -334,7 +415,16 @@
       "deletions": 0,
       "changed_files": 4,
       "created_at": "2026-05-26T18:53:12Z",
-      "score": null,
+      "score": {
+        "correctness": 3.0,
+        "test_rigor": 2.0,
+        "api_fit": 3.0,
+        "docs_quality": 5.0,
+        "novelty": 3.0,
+        "persona_fidelity": 4.0,
+        "total": 21.0,
+        "notes": "PR #2 from the harvard-phd persona scored 21.0/30 across 3 judges, with strongest dimensions docs_quality (5.0) and persona_fidelity (4.0). Judges flagged test_rigor (2.0) and correctness (3.0) as the weakest areas. Lead judge summary: \"Mock judge 0: deterministic synthetic score.\""
+      },
       "tag": "agent-authored"
     }
   ]

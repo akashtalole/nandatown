@@ -117,12 +117,23 @@ class SubmissionAuthor:
 
 @dataclass(frozen=True)
 class JudgeScore:
-    """Per-dimension score breakdown (each 0-10) and a derived total."""
+    """Per-dimension score breakdown and a derived total.
+
+    The six dimensions mirror ``scripts/judge/rubric.md`` (the source of
+    truth — do not invent new ones here). Each dimension is on the 1-5
+    integer scale the judges actually score against; ``total`` is the
+    sum and therefore lives in ``[6, 30]``. ``total`` is taken verbatim
+    from the ``median`` field that the judge panel writes to
+    ``docs/hackathon/scores.json`` (which is ``median_low`` of the
+    per-judge totals, not ``sum`` of per-dim medians — they differ).
+    """
 
     correctness: float | None = None
-    realism: float | None = None
-    design: float | None = None
-    docs: float | None = None
+    test_rigor: float | None = None
+    api_fit: float | None = None
+    docs_quality: float | None = None
+    novelty: float | None = None
+    persona_fidelity: float | None = None
     total: float | None = None
     notes: str | None = None
 
@@ -244,15 +255,43 @@ def _get(d: Mapping[str, object], key: str) -> object:
 def load_scores(scores_path: Path | str | None) -> dict[str, JudgeScore]:
     """Load `docs/hackathon/scores.json` if it exists.
 
-    The judge track owns this file. We expect a mapping from PR number
-    (as a string or int) to a per-dimension breakdown — keys are
-    ``correctness``, ``realism``, ``design``, ``docs``, ``total``,
-    ``notes`` — each scored 0-10 (``total`` is the headline number).
+    The judge track (PR #14) owns this file. The on-disk shape is::
+
+        {
+          "version": 1,
+          "generated_at": "2026-05-26T...",
+          "mock": true,
+          "submissions": [
+            {
+              "pr": 2,
+              "scores": {
+                "correctness": 3.0,
+                "test_rigor": 2.0,
+                "api_fit": 3.0,
+                "docs_quality": 5.0,
+                "novelty": 3.0,
+                "persona_fidelity": 4.0
+              },
+              "median": 21.0,           // sum-equivalent total in [6, 30]
+              "consensus": "...",
+              ...
+            },
+            ...
+          ]
+        }
+
+    We project each entry into ``{pr_number: JudgeScore}`` where the
+    six dimensions are scaled 1-5 and ``total`` carries the ``median``
+    field verbatim. The ``consensus`` prose (when present) is stashed
+    on ``notes`` so the detail view can quote it.
 
     Missing keys mean the submission is unscored — the UI shows
     "unscored — judging in progress" for those.
 
     A missing or unreadable file returns an empty dict; never raises.
+    The PR #16-era flat ``{<pr>: {...}}`` shape is no longer supported
+    on disk (the judge panel never wrote it); the function still
+    degrades to an empty dict for anything it does not recognise.
     """
 
     if scores_path is None:
@@ -267,18 +306,33 @@ def load_scores(scores_path: Path | str | None) -> dict[str, JudgeScore]:
     if not isinstance(raw, dict):
         return {}
     raw_map = cast("dict[str, object]", raw)
+    submissions_obj = _get(raw_map, "submissions")
+    if not isinstance(submissions_obj, list):
+        return {}
     out: dict[str, JudgeScore] = {}
-    for key, value in raw_map.items():
-        if not isinstance(value, dict):
+    for entry_obj in cast("list[object]", submissions_obj):
+        if not isinstance(entry_obj, dict):
             continue
-        entry = cast("dict[str, object]", value)
-        out[str(key)] = JudgeScore(
-            correctness=_coerce_float(_get(entry, "correctness")),
-            realism=_coerce_float(_get(entry, "realism")),
-            design=_coerce_float(_get(entry, "design")),
-            docs=_coerce_float(_get(entry, "docs")),
-            total=_coerce_float(_get(entry, "total")),
-            notes=_coerce_str(_get(entry, "notes")),
+        entry = cast("dict[str, object]", entry_obj)
+        pr_value = _get(entry, "pr")
+        pr_number = _coerce_int(pr_value)
+        if pr_number is None:
+            continue
+        scores_obj = _get(entry, "scores")
+        scores_map: Mapping[str, object] = (
+            cast("dict[str, object]", scores_obj) if isinstance(scores_obj, dict) else {}
+        )
+        out[str(pr_number)] = JudgeScore(
+            correctness=_coerce_float(_get(scores_map, "correctness")),
+            test_rigor=_coerce_float(_get(scores_map, "test_rigor")),
+            api_fit=_coerce_float(_get(scores_map, "api_fit")),
+            docs_quality=_coerce_float(_get(scores_map, "docs_quality")),
+            novelty=_coerce_float(_get(scores_map, "novelty")),
+            persona_fidelity=_coerce_float(_get(scores_map, "persona_fidelity")),
+            # `median` is the canonical headline number written by the
+            # judge panel (median_low of per-judge totals in [6, 30]).
+            total=_coerce_float(_get(entry, "median")),
+            notes=_coerce_str(_get(entry, "consensus")),
         )
     return out
 

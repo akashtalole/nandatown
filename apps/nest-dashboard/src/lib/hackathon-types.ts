@@ -30,14 +30,27 @@ export interface SubmissionAuthor {
   kind: "agent" | "human";
 }
 
+/**
+ * Per-dimension score breakdown mirrored from `scripts/judge/rubric.md`.
+ * Each dimension is on a 1-5 integer scale; ``total`` is the panel's
+ * ``median`` field — the sum of dimension medians (median_low of
+ * per-judge totals), so it lives in ``[6, 30]``.
+ */
 export interface JudgeScore {
   correctness: number | null;
-  realism: number | null;
-  design: number | null;
-  docs: number | null;
+  test_rigor: number | null;
+  api_fit: number | null;
+  docs_quality: number | null;
+  novelty: number | null;
+  persona_fidelity: number | null;
   total: number | null;
   notes: string | null;
 }
+
+/** Numeric range for a single rubric dimension (judges score 1..5). */
+export const SCORE_DIMENSION_MAX = 5;
+/** Maximum possible total across the six dimensions. */
+export const SCORE_TOTAL_MAX = 30;
 
 export interface Submission {
   id: string;
@@ -127,11 +140,18 @@ export function formatLinesAdded(n: number): string {
   return String(n);
 }
 
+/**
+ * Rubric dimensions in display order. Names match
+ * `scripts/judge/rubric.md` and `nest_marketplace.adapter.JudgeScore`.
+ * Each carries a 1-5 integer score from the judge panel.
+ */
 export const SCORE_DIMENSIONS = [
   { key: "correctness", label: "Correctness" },
-  { key: "realism", label: "Realism" },
-  { key: "design", label: "Design" },
-  { key: "docs", label: "Docs" },
+  { key: "test_rigor", label: "Test Rigor" },
+  { key: "api_fit", label: "API Fit" },
+  { key: "docs_quality", label: "Docs Quality" },
+  { key: "novelty", label: "Novelty" },
+  { key: "persona_fidelity", label: "Persona Fidelity" },
 ] as const;
 
 export type ScoreDimension = (typeof SCORE_DIMENSIONS)[number]["key"];
