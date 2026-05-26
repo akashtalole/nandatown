@@ -22,6 +22,7 @@ _BUILTINS: dict[tuple[str, str], str] = {
     ("identity", "did_key"): f"{_REF}.identity.did_key:DidKeyIdentity",
     ("registry", "in_memory"): f"{_REF}.registry.in_memory:InMemoryRegistry",
     ("auth", "jwt"): f"{_REF}.auth.jwt_auth:JwtAuth",
+    ("auth", "dpop_jwt"): f"{_REF}.auth.dpop_jwt:DpopAuth",
     ("trust", "score_average"): f"{_REF}.trust.score_average:ScoreAverageTrust",
     ("payments", "prepaid_credits"): f"{_REF}.payments.prepaid_credits:PrepaidCredits",
     ("coordination", "contract_net"): f"{_REF}.coordination.contract_net:ContractNet",
