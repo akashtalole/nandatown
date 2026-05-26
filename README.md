@@ -227,7 +227,7 @@ resolved by name via entry points or a built-in default.
 |  3 | Identity      | `Identity`      | `did_key` (deterministic public-key signatures for simulation; not Ed25519) |
 |  4 | Registry      | `Registry`      | `in_memory` (dict lookup, no persistence) |
 |  5 | Auth          | `Auth`          | `jwt` (HMAC-SHA256 token; not RFC JWT) |
-|  6 | Trust         | `Trust`         | `score_average` (running mean reputation; no Sybil resistance) |
+|  6 | Trust         | `Trust`         | `score_average` (running mean reputation; no Sybil resistance). Also bundled: `eigentrust` (transitive, Sybil-resistant). |
 |  7 | Payments      | `Payments`      | `prepaid_credits` (in-memory ledger) |
 |  8 | Coordination  | `Coordination`  | `contract_net` (FIPA: propose · bid · resolve · commit) |
 |  9 | Negotiation   | `Negotiation`   | `alternating_offers` (Rubinstein, with patience discount) |
