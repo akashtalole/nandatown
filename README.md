@@ -231,7 +231,7 @@ resolved by name via entry points or a built-in default.
 |  7 | Payments      | `Payments`      | `prepaid_credits` (in-memory ledger) |
 |  8 | Coordination  | `Coordination`  | `contract_net` (FIPA: propose · bid · resolve · commit) |
 |  9 | Negotiation   | `Negotiation`   | `alternating_offers` (Rubinstein, with patience discount) |
-| 10 | Memory        | `Memory`        | `blackboard` (shared KV, subscribe, CAS) |
+| 10 | Memory        | `Memory`        | `blackboard` (shared KV, subscribe, CAS); also ships `semantic` (similarity recall + TTL + LRU) |
 | 11 | Privacy       | `Privacy`       | `noop` (stub passthrough) |
 | 12 | Data Facts    | `DataFacts`     | `datafacts_v1` (dataset publish · fetch · ACL) |
 
