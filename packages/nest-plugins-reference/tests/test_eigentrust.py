@@ -65,9 +65,7 @@ def _assert_on_simplex(t: dict[AgentId, float]) -> None:
     for a, v in t.items():
         assert v >= -_EPS, f"{a} has negative mass {v}"
     total = sum(t.values())
-    assert math.isclose(total, 1.0, abs_tol=1e-6), (
-        f"trust vector does not sum to 1: {total}"
-    )
+    assert math.isclose(total, 1.0, abs_tol=1e-6), f"trust vector does not sum to 1: {total}"
 
 
 def _assert_row_stochastic(c: dict[AgentId, dict[AgentId, float]]) -> None:
@@ -88,8 +86,8 @@ def _assert_fixed_point(trust: EigenTrust, tol_factor: float = 10.0) -> None:
         return
     t = trust.trust_vector()
     c = trust.local_trust_matrix()
-    p = trust._pretrusted_distribution(agents)  # noqa: SLF001 — test wants internals
-    alpha = trust._alpha  # noqa: SLF001
+    p = trust._pretrusted_distribution(agents)  # noqa: SLF001 — test wants internals  # pyright: ignore[reportPrivateUsage]
+    alpha = trust._alpha  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
     next_t: dict[AgentId, float] = dict.fromkeys(agents, 0.0)
     for i in agents:
         for j, c_ij in c[i].items():
@@ -97,9 +95,7 @@ def _assert_fixed_point(trust: EigenTrust, tol_factor: float = 10.0) -> None:
     for j in agents:
         next_t[j] = (1.0 - alpha) * next_t[j] + alpha * p[j]
     worst = max(abs(next_t[j] - t[j]) for j in agents)
-    assert worst < tol_factor * DEFAULT_TOL, (
-        f"fixed-point residual {worst} exceeds tolerance"
-    )
+    assert worst < tol_factor * DEFAULT_TOL, f"fixed-point residual {worst} exceeds tolerance"
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +268,7 @@ class TestEigenTrustInvariants:
             await trust.score(AgentId(a))
 
         t = trust.trust_vector()
-        p = trust._pretrusted_distribution(sorted(trust._agents))  # noqa: SLF001
+        p = trust._pretrusted_distribution(sorted(trust._agents))  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
         # Sybils only get the teleport mass alpha * p_i, and p_i = 0 for
         # non-pretrusted agents.  Allow tiny slack for numerical noise.
         assert t[AgentId("s1")] <= 0.1 * p[AgentId("s1")] + 1e-9
@@ -429,6 +425,6 @@ class TestEigenTrustProperties:
         for a in agents:
             await trust.score(a)
         t = trust.trust_vector()
-        p = trust._pretrusted_distribution(sorted(trust._agents))  # noqa: SLF001
+        p = trust._pretrusted_distribution(sorted(trust._agents))  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
         for a in pretrusted:
             assert t[a] + 1e-9 >= DEFAULT_ALPHA * p[a]

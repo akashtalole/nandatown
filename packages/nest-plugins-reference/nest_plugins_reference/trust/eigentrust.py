@@ -269,11 +269,14 @@ class EigenTrust:
         self._agents.add(agent)
         t = self._compute_trust_vector()
         value = t.get(agent, 0.0)
-        sample_count = sum(
-            len(self._pos[i]) + len(self._neg[i]) for i in self._agents
-        )
-        confidence = 0.0 if self._tol <= 0 else max(
-            0.0, min(1.0, 1.0 - self.last_residual / max(self._tol, 1e-12)),
+        sample_count = sum(len(self._pos[i]) + len(self._neg[i]) for i in self._agents)
+        confidence = (
+            0.0
+            if self._tol <= 0
+            else max(
+                0.0,
+                min(1.0, 1.0 - self.last_residual / max(self._tol, 1e-12)),
+            )
         )
         return ReputationScore(
             agent_id=agent,
@@ -358,7 +361,8 @@ class EigenTrust:
         return {a: mass for a in agents}
 
     def _local_trust_raw(
-        self, agents: list[AgentId],
+        self,
+        agents: list[AgentId],
     ) -> dict[AgentId, dict[AgentId, float]]:
         """Build ``s_ij = max(0, pos_ij - neg_ij)`` over the known agents."""
         raw: dict[AgentId, dict[AgentId, float]] = {}
@@ -389,7 +393,12 @@ class EigenTrust:
         raw = self._local_trust_raw(agents)
         c = _normalize_local_trust(raw, agents, p)
         t, iters, residual = _power_iterate(
-            c, p, self._alpha, agents, self._max_iter, self._tol,
+            c,
+            p,
+            self._alpha,
+            agents,
+            self._max_iter,
+            self._tol,
         )
         self.last_iters = iters
         self.last_residual = residual
