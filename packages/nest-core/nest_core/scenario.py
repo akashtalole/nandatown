@@ -117,6 +117,71 @@ class FailureConfig(BaseModel):
         return value
 
 
+class TransportConfig(BaseModel):
+    """Optional transport-level delay / bandwidth / drop knobs.
+
+    Maps onto :class:`nest_core.sim.delay_model.DelayModelConfig`.  Time
+    fields are in **milliseconds**, bandwidth in **kbps** (kilo-bits/sec).
+
+    Example::
+
+        transport = TransportConfig(
+            latency={"kind": "lognormal", "p50_ms": 20, "p99_ms": 200},
+            jitter_ms=2,
+            bandwidth_kbps=1000,
+        )
+    """
+
+    latency: dict[str, Any] = Field(default_factory=dict)
+    jitter_ms: float = 0.0
+    bandwidth_kbps: float | None = None
+    reorder_prob: float = 0.0
+    drop_prob: float = 0.0
+    seed_salt: int = 0
+
+    @field_validator("jitter_ms")
+    @classmethod
+    def _jitter_non_negative(cls, value: float) -> float:
+        if value < 0:
+            msg = f"jitter_ms must be >= 0, got {value}"
+            raise ValueError(msg)
+        return value
+
+    @field_validator("reorder_prob", "drop_prob")
+    @classmethod
+    def _prob_unit_interval(cls, value: float) -> float:
+        if not 0.0 <= value <= 1.0:
+            msg = "transport probabilities must be in [0, 1]"
+            raise ValueError(msg)
+        return value
+
+
+class SloConfig(BaseModel):
+    """Latency / availability SLO targets attached to a scenario.
+
+    All latency fields are in **virtual seconds** to match the trace
+    timestamps.  ``min_delivery_rate`` is a fraction in ``[0, 1]``.
+
+    Example::
+
+        slo = SloConfig(p99_latency=0.250, min_delivery_rate=0.99)
+    """
+
+    p50_latency: float | None = None
+    p95_latency: float | None = None
+    p99_latency: float | None = None
+    max_latency: float | None = None
+    min_delivery_rate: float | None = None
+
+    @field_validator("min_delivery_rate")
+    @classmethod
+    def _rate_unit_interval(cls, value: float | None) -> float | None:
+        if value is not None and not 0.0 <= value <= 1.0:
+            msg = "min_delivery_rate must be in [0,1]"
+            raise ValueError(msg)
+        return value
+
+
 class OutputConfig(BaseModel):
     """Output configuration for traces and reports.
 
@@ -146,6 +211,8 @@ class ScenarioConfig(BaseModel):
     failures: FailureConfig = Field(default_factory=FailureConfig)
     duration: str = "ticks: 10000"
     metrics: list[str] = Field(default_factory=list)
+    transport: TransportConfig | None = None
+    slo: SloConfig | None = None
     output: OutputConfig = Field(default_factory=OutputConfig)
     seed: int = 0
 

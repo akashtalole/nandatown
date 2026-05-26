@@ -50,15 +50,23 @@ def _load_events(path: Path) -> list[dict[str, Any]]:
 def validate_trace(
     trace_path: Path,
     scenario_type: str,
+    slo: dict[str, float | None] | None = None,
 ) -> list[ValidationResult]:
     """Run all validators for a scenario type against a trace.
 
+    When ``slo`` is provided, latency / availability checks from
+    :func:`validate_latency_slo` are appended to the result list.
+
     Example::
 
-        results = validate_trace(Path("trace.jsonl"), "marketplace")
+        results = validate_trace(Path("trace.jsonl"), "marketplace",
+                                 slo={"p99_latency": 0.25})
     """
     events = _load_events(trace_path)
-    return validate_events(events, scenario_type)
+    results = validate_events(events, scenario_type)
+    if slo:
+        results.extend(validate_latency_slo(events, slo))
+    return results
 
 
 def validate_events(
@@ -884,6 +892,109 @@ def validate_reputation_warnings(
             f"{len(warned)} warnings issued, {len(should_warn)} needed",
         )
     ]
+
+
+# ---------------------------------------------------------------------------
+# SLO validators (latency / availability — scenario-independent)
+# ---------------------------------------------------------------------------
+
+
+def validate_latency_slo(
+    events: list[dict[str, Any]],
+    slo: dict[str, float | None],
+) -> list[ValidationResult]:
+    """Verify per-message latency stays under configured budgets.
+
+    ``slo`` is expected to expose any of ``p50_latency``, ``p95_latency``,
+    ``p99_latency``, ``max_latency`` (virtual seconds) and
+    ``min_delivery_rate`` (fraction).  Each non-None entry yields a
+    pass/fail :class:`ValidationResult`.
+
+    Example::
+
+        results = validate_latency_slo(events, {"p99_latency": 0.25})
+    """
+    # Pair send/receive by correlation id to derive per-message latency.
+    send_times: dict[str, float] = {}
+    latencies: list[float] = []
+    sends = 0
+    receives = 0
+    for ev in events:
+        kind = ev.get("kind", "")
+        corr = str(ev.get("corr", ""))
+        ts = float(ev.get("ts", 0.0))
+        if kind == "send":
+            sends += 1
+            if corr:
+                send_times[corr] = ts
+        elif kind == "receive":
+            receives += 1
+            if corr:
+                start = send_times.get(corr)
+                if start is not None:
+                    latencies.append(ts - start)
+
+    xs = sorted(latencies)
+    n = len(xs)
+    results: list[ValidationResult] = []
+
+    def _pct(q: float) -> float:
+        if n == 0:
+            return 0.0
+        # Nearest-rank — matches what production tools usually report.
+        import math as _math
+
+        if q <= 0:
+            return xs[0]
+        if q >= 100:
+            return xs[-1]
+        rank = max(1, _math.ceil(q / 100.0 * n))
+        return xs[rank - 1]
+
+    targets = (
+        ("p50_latency", 50.0),
+        ("p95_latency", 95.0),
+        ("p99_latency", 99.0),
+    )
+    for key, q in targets:
+        budget = slo.get(key)
+        if budget is None:
+            continue
+        actual = _pct(q)
+        passed = actual <= budget if n else False
+        results.append(
+            ValidationResult(
+                f"slo_{key}",
+                passed,
+                f"observed {actual:.6f}s vs budget {budget:.6f}s over {n} messages",
+            )
+        )
+
+    max_budget = slo.get("max_latency")
+    if max_budget is not None:
+        actual = xs[-1] if xs else 0.0
+        passed = actual <= max_budget if n else False
+        results.append(
+            ValidationResult(
+                "slo_max_latency",
+                passed,
+                f"observed {actual:.6f}s vs budget {max_budget:.6f}s",
+            )
+        )
+
+    min_rate = slo.get("min_delivery_rate")
+    if min_rate is not None:
+        rate = receives / sends if sends else 0.0
+        passed = rate >= min_rate
+        results.append(
+            ValidationResult(
+                "slo_min_delivery_rate",
+                passed,
+                f"observed {rate:.4f} vs target {min_rate:.4f} (sends={sends}, recv={receives})",
+            )
+        )
+
+    return results
 
 
 # ---------------------------------------------------------------------------

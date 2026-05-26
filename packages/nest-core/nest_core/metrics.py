@@ -9,6 +9,7 @@ Example::
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -189,25 +190,71 @@ def _unique_pairs(events: list[dict[str, Any]]) -> float:
 # ---------------------------------------------------------------------------
 # Core metrics
 # ---------------------------------------------------------------------------
-def _mean_latency(events: list[dict[str, Any]]) -> float:
+def _collect_latencies(events: list[dict[str, Any]]) -> list[float]:
+    """Pair send/receive events by correlation id and return per-message latency.
+
+    Senders emit at their local time; receivers emit at the simulator's
+    delivery time (which already includes any delay-model latency).  The
+    difference is the end-to-end virtual-time latency for that message.
+    """
     send_times: dict[str, float] = {}
     latencies: list[float] = []
-
     for ev in events:
         kind = ev.get("kind", "")
         corr = ev.get("corr", "")
-        ts = ev.get("ts", 0.0)
-
+        ts = float(ev.get("ts", 0.0))
         if kind == "send" and corr:
             send_times[corr] = ts
         elif kind == "receive" and corr:
             send_ts = send_times.get(corr)
             if send_ts is not None:
                 latencies.append(ts - send_ts)
+    return latencies
 
+
+def _percentile(sorted_xs: list[float], q: float) -> float:
+    """Return the *q*-th percentile (0 <= q <= 100) using nearest-rank.
+
+    Nearest-rank is what netem / production telemetry usually report, and
+    it avoids the surprise of returning a value that isn't actually in the
+    distribution.
+    """
+    if not sorted_xs:
+        return 0.0
+    if q <= 0:
+        return sorted_xs[0]
+    if q >= 100:
+        return sorted_xs[-1]
+    # Rank in 1..n
+    rank = max(1, math.ceil(q / 100.0 * len(sorted_xs)))
+    return sorted_xs[rank - 1]
+
+
+def _mean_latency(events: list[dict[str, Any]]) -> float:
+    latencies = _collect_latencies(events)
     if not latencies:
         return 0.0
     return sum(latencies) / len(latencies)
+
+
+def _p50_latency(events: list[dict[str, Any]]) -> float:
+    xs = sorted(_collect_latencies(events))
+    return _percentile(xs, 50)
+
+
+def _p95_latency(events: list[dict[str, Any]]) -> float:
+    xs = sorted(_collect_latencies(events))
+    return _percentile(xs, 95)
+
+
+def _p99_latency(events: list[dict[str, Any]]) -> float:
+    xs = sorted(_collect_latencies(events))
+    return _percentile(xs, 99)
+
+
+def _max_latency(events: list[dict[str, Any]]) -> float:
+    xs = _collect_latencies(events)
+    return max(xs) if xs else 0.0
 
 
 def _message_count(events: list[dict[str, Any]]) -> float:
@@ -270,6 +317,10 @@ _METRIC_FUNCS: dict[str, Any] = {
     "mean_rounds_to_deal": _mean_rounds_to_deal,
     "unique_pairs": _unique_pairs,
     "mean_latency": _mean_latency,
+    "p50_latency": _p50_latency,
+    "p95_latency": _p95_latency,
+    "p99_latency": _p99_latency,
+    "max_latency": _max_latency,
     "message_count": _message_count,
     "dropped_count": _dropped_count,
     "agent_count": _agent_count,
@@ -285,19 +336,24 @@ ALL_METRICS: list[str] = list(_METRIC_FUNCS.keys())
 def validate_protocol(
     trace_path: str | Path,
     scenario_type: str,
+    slo: dict[str, float | None] | None = None,
 ) -> dict[str, Any]:
     """Run protocol validators and return results as part of metrics output.
 
+    Pass ``slo`` to additionally run latency / availability SLO checks
+    against the trace.
+
     Example::
 
-        results = validate_protocol("trace.jsonl", "marketplace")
+        results = validate_protocol("trace.jsonl", "marketplace",
+                                    slo={"p99_latency": 0.25})
         # {"validations": [{"name": ..., "passed": ..., "detail": ...}, ...],
         #  "all_passed": True}
     """
     from nest_core.validators import validate_trace
 
     trace_path = Path(trace_path)
-    vresults = validate_trace(trace_path, scenario_type)
+    vresults = validate_trace(trace_path, scenario_type, slo=slo)
     return {
         "validations": [{"name": r.name, "passed": r.passed, "detail": r.detail} for r in vresults],
         "all_passed": all(r.passed for r in vresults),

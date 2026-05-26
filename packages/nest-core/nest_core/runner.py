@@ -14,6 +14,7 @@ from typing import Any, cast
 
 from nest_core.plugins import PluginRegistry
 from nest_core.scenario import ScenarioConfig
+from nest_core.sim.delay_model import DelayModel, DelayModelConfig
 from nest_core.sim.simulator import Simulator
 from nest_core.types import AgentId
 
@@ -43,14 +44,48 @@ class ScenarioRunner:
         self._registry = registry or PluginRegistry()
         self._resolved_plugins: dict[str, Any] = {}
         self._metrics: dict[str, float] = {}
+        self._validations: list[dict[str, Any]] = []
 
     @property
     def metrics(self) -> dict[str, float]:
         return self._metrics
 
     @property
+    def validations(self) -> list[dict[str, Any]]:
+        """SLO / protocol validation results from the last run."""
+        return self._validations
+
+    @property
     def resolved_plugins(self) -> dict[str, Any]:
         return self._resolved_plugins
+
+    def _build_delay_model(self) -> DelayModel | None:
+        """Construct a :class:`DelayModel` from the scenario's transport block.
+
+        Only built when ``layers.transport == "netem"`` *and* a ``transport:``
+        block is provided.  The model's RNG is seeded from
+        ``scenario.seed ^ transport.seed_salt`` so per-scenario reruns are
+        reproducible *and* the transport's randomness can be perturbed
+        independently of agent behaviour.
+
+        Example::
+
+            model = runner._build_delay_model()
+        """
+        if self._config.layers.transport != "netem":
+            return None
+        cfg = self._config.transport
+        if cfg is None:
+            # netem requested but no parameters -> a no-op model so users get
+            # a clear "yes this layer is in play" without surprising delays.
+            cfg_dict: dict[str, Any] = {}
+        else:
+            cfg_dict = cfg.model_dump()
+        model_cfg = DelayModelConfig.from_dict(cfg_dict)
+        seed = self._config.seed ^ (
+            self._config.transport.seed_salt if self._config.transport else 0
+        )
+        return DelayModel.from_config(model_cfg, seed=seed)
 
     def _resolve_plugins(self) -> dict[str, Any]:
         """Resolve all layer plugins from the config.
@@ -159,6 +194,8 @@ class ScenarioRunner:
             raw_groups = failures.network_partition.get("groups")
             partition_groups = _parse_partition_groups(raw_groups)
 
+        delay_model = self._build_delay_model()
+
         sim = Simulator(
             seed=self._config.seed,
             trace_path=trace_path,
@@ -166,6 +203,7 @@ class ScenarioRunner:
             byzantine_fraction=failures.byzantine_agents,
             partition_groups=partition_groups,
             plugins=plugins,
+            delay_model=delay_model,
         )
 
         agents = self._create_agents(plugins)
@@ -188,5 +226,14 @@ class ScenarioRunner:
             if self._config.output.report:
                 report_path = Path(self._config.output.report)
                 generate_html_report(trace_path, self._metrics, report_path)
+
+        if self._config.slo is not None:
+            from nest_core.validators import validate_trace
+
+            slo_dict = self._config.slo.model_dump()
+            slo_results = validate_trace(trace_path, "__slo_only__", slo=slo_dict)
+            self._validations = [
+                {"name": r.name, "passed": r.passed, "detail": r.detail} for r in slo_results
+            ]
 
         return trace_path

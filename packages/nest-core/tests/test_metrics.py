@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from nest_core.metrics import (
@@ -94,6 +95,43 @@ class TestComputeMetrics:
         results = compute_metrics(trace, ["unique_pairs"])
         # a1 <-> a2 is the only pair
         assert results["unique_pairs"] == 1.0
+
+    def test_latency_percentiles(self, tmp_path: Path) -> None:
+        """p50/p95/p99/max are computed from corr-paired send/receive events."""
+        # 10 messages with latencies 1..10ms (so p99 ~= 10ms)
+        trace = tmp_path / "t.jsonl"
+        events: list[dict[str, Any]] = []
+        for i in range(10):
+            corr = f"c-{i}"
+            send_ts = 1.0
+            recv_ts = send_ts + (i + 1) * 0.001  # 1..10 ms
+            events.append({"ts": send_ts, "agent": "a1", "kind": "send", "to": "a2", "corr": corr})
+            events.append(
+                {"ts": recv_ts, "agent": "a2", "kind": "receive", "from": "a1", "corr": corr}
+            )
+        trace.write_text("\n".join(json.dumps(e) for e in events))
+
+        results = compute_metrics(
+            trace,
+            ["mean_latency", "p50_latency", "p95_latency", "p99_latency", "max_latency"],
+        )
+        # mean = (1+2+...+10)/10 = 5.5ms
+        assert abs(results["mean_latency"] - 0.0055) < 1e-6
+        # nearest-rank p50 -> 5ms (rank 5 of 10)
+        assert abs(results["p50_latency"] - 0.005) < 1e-6
+        # p99 -> 10ms (rank 10 of 10 -> last)
+        assert abs(results["p99_latency"] - 0.010) < 1e-6
+        assert abs(results["max_latency"] - 0.010) < 1e-6
+        assert results["p95_latency"] >= results["p50_latency"]
+
+    def test_latency_percentiles_empty(self, tmp_path: Path) -> None:
+        trace = tmp_path / "t.jsonl"
+        trace.write_text("")
+        results = compute_metrics(
+            trace, ["p50_latency", "p95_latency", "p99_latency", "max_latency"]
+        )
+        for k, v in results.items():
+            assert v == 0.0, f"{k}={v}"
 
 
 class TestMarketplaceMetrics:

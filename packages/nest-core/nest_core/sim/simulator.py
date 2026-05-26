@@ -21,6 +21,7 @@ from typing import Any
 
 from nest_core.sim.agent import AgentContext, StateMachineAgent
 from nest_core.sim.clock import VirtualClock
+from nest_core.sim.delay_model import DelayModel
 from nest_core.sim.events import Event, EventQueue
 from nest_core.sim.trace import TraceWriter
 from nest_core.sim.transport import InMemoryTransport
@@ -150,6 +151,7 @@ class Simulator:
         byzantine_fraction: float = 0.0,
         partition_groups: list[list[str]] | None = None,
         plugins: dict[str, Any] | None = None,
+        delay_model: DelayModel | None = None,
     ) -> None:
         if not 0.0 <= message_drop_rate <= 1.0:
             msg = f"message_drop_rate must be between 0 and 1: {message_drop_rate}"
@@ -177,6 +179,7 @@ class Simulator:
         self._failure_rng = random.Random(self._master_rng.randint(0, 2**63))
         self._plugins: dict[str, Any] = plugins or {}
         self._agent_plugins: dict[AgentId, dict[str, Any]] = {}
+        self._delay_model: DelayModel | None = delay_model
 
     @property
     def clock(self) -> VirtualClock:
@@ -227,7 +230,13 @@ class Simulator:
         """
         agent_rng = random.Random(self._master_rng.randint(0, 2**63))
         all_ids = [aid for aid in self._agents]
-        transport = InMemoryTransport(agent_id, self._queue, self._clock, all_ids)
+        transport = InMemoryTransport(
+            agent_id,
+            self._queue,
+            self._clock,
+            all_ids,
+            delay_model=self._delay_model,
+        )
         self._agents[agent_id] = _AgentSlot(
             agent=agent,
             transport=transport,
@@ -307,6 +316,26 @@ class Simulator:
             self._tick_count += 1
 
             if event.kind == "start":
+                continue
+
+            if event.kind == "netem_drop":
+                # Drop induced by the link-layer delay model.  Record it
+                # under the same 'dropped' kind as the message_drop knob so
+                # downstream tooling stays consistent.
+                self._dropped_count += 1
+                if self._trace:
+                    drop_rec: dict[str, Any] = {
+                        "ts": self._clock.now,
+                        "agent": str(event.agent_id),
+                        "kind": "dropped",
+                        "from": str(event.target_id),
+                        "size": len(event.payload),
+                        "msg": event.payload.decode("utf-8", errors="replace"),
+                        "reason": "netem",
+                    }
+                    if event.correlation_id is not None:
+                        drop_rec["corr"] = str(event.correlation_id)
+                    self._trace.record(drop_rec)
                 continue
 
             if event.kind == "deliver":
