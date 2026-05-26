@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: Apache-2.0
+# Marketplace scenario with the *realistic* transport plugin.
+#
+# Demonstrates per-hop latency, egress bandwidth, jitter, and drop-tail
+# backpressure on top of the same marketplace task. Compare the trace's
+# mean_latency / duration metrics against scenarios/marketplace.yaml
+# (which uses the zero-latency in_memory transport).
+name: marketplace_realistic
+description: "50 buyers + 50 sellers over a realistic per-hop network."
+
+tier: 1
+seed: 42
+
+agents:
+  count: 100
+  brain: state-machine
+  roles:
+    - name: buyer
+      count: 50
+    - name: seller
+      count: 50
+
+layers:
+  transport: realistic
+  # The transport_config block is forwarded to RealisticNetwork.from_config.
+  # All units are SI: latency in milliseconds, bandwidth in bits/second.
+  transport_config:
+    base_latency_ms: 5.0          # mean propagation per hop
+    jitter_sigma: 0.4             # lognormal jitter; ~ P99/median = 2.5x
+    bandwidth_bps: 10_000_000     # 10 Mbps egress per agent
+    max_queue_bytes: 1_000_000    # 1 MB per-agent egress queue; drop-tail
+    loss_rate: 0.001              # 0.1% per-hop link-level packet loss
+    # Optional per-link overrides — model a slow / flaky link explicitly.
+    links:
+      - from: buyer-0
+        to: seller-0
+        base_latency_ms: 80.0     # cross-region hop
+        loss_rate: 0.02           # 2% loss for this pair
+  comms: nest_native
+  identity: did_key
+  registry: in_memory
+  auth: jwt
+  trust: score_average
+  payments: prepaid_credits
+  coordination: contract_net
+  negotiation: alternating_offers
+  memory: blackboard
+  privacy: noop
+  datafacts: datafacts_v1
+
+task:
+  type: marketplace
+  config:
+    catalog_size: 200
+    rounds: 10
+
+failures:
+  # Scenario-level failure injection (Bernoulli drop above the transport)
+  # is orthogonal to the network's loss_rate above. Both can be combined
+  # to stress-test retry / deadline logic.
+  message_drop: 0.0
+
+duration: "ticks: 50000"
+
+metrics:
+  - mean_latency
+  - throughput
+  - duration
+  - message_count
+  - dropped_count
+  - delivery_rate
+
+output:
+  trace: ./traces/marketplace_realistic.jsonl

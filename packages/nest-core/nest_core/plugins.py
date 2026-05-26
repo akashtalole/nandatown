@@ -18,6 +18,7 @@ from typing import Any
 _REF = "nest_plugins_reference"
 _BUILTINS: dict[tuple[str, str], str] = {
     ("transport", "in_memory"): f"{_REF}.transport.in_memory:StandaloneInMemoryTransport",
+    ("transport", "realistic"): f"{_REF}.transport.realistic:RealisticTransport",
     ("comms", "nest_native"): f"{_REF}.comms.nest_native:NestNativeComms",
     ("identity", "did_key"): f"{_REF}.identity.did_key:DidKeyIdentity",
     ("registry", "in_memory"): f"{_REF}.registry.in_memory:InMemoryRegistry",

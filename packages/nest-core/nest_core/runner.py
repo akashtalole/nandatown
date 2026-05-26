@@ -140,6 +140,25 @@ class ScenarioRunner:
             raise KeyError(msg)
         return factory_fn(self._config, plugins, backend=backend)
 
+    def _build_network_model(self) -> Any:
+        """Build a NetworkModel from scenario config, or return None.
+
+        For ``transport: realistic``, instantiates
+        :class:`~nest_plugins_reference.transport.realistic.RealisticNetwork`
+        from ``layers.transport_config``. Other transport plugins fall
+        back to the simulator's default (zero-latency) model.
+
+        Example::
+
+            model = runner._build_network_model()
+        """
+        layers = self._config.layers
+        if layers.transport != "realistic":
+            return None
+        from nest_plugins_reference.transport.realistic import RealisticNetwork
+
+        return RealisticNetwork.from_config(layers.transport_config or {})
+
     async def run(self) -> Path:
         """Run the scenario and return the trace file path.
 
@@ -159,6 +178,8 @@ class ScenarioRunner:
             raw_groups = failures.network_partition.get("groups")
             partition_groups = _parse_partition_groups(raw_groups)
 
+        network_model = self._build_network_model()
+
         sim = Simulator(
             seed=self._config.seed,
             trace_path=trace_path,
@@ -166,6 +187,7 @@ class ScenarioRunner:
             byzantine_fraction=failures.byzantine_agents,
             partition_groups=partition_groups,
             plugins=plugins,
+            network_model=network_model,
         )
 
         agents = self._create_agents(plugins)

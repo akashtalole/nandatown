@@ -65,12 +65,17 @@ class AgentConfig(BaseModel):
 class LayerConfig(BaseModel):
     """Plugin selection for each of the 12 layers.
 
+    ``transport_config`` is an optional dict forwarded to the transport
+    plugin (e.g. ``RealisticNetwork.from_config``). Most plugins accept
+    no config; the field is ignored when empty.
+
     Example::
 
         layers = LayerConfig(transport="in_memory", comms="nest_native")
     """
 
     transport: str = "in_memory"
+    transport_config: dict[str, Any] = Field(default_factory=dict)
     comms: str = "nest_native"
     identity: str = "did_key"
     registry: str = "in_memory"

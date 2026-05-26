@@ -222,7 +222,7 @@ resolved by name via entry points or a built-in default.
 
 | # | Layer | Interface | Default plugin |
 |---|---|---|---|
-|  1 | Transport     | `Transport`     | `in_memory` (in-process event queue; no network I/O) |
+|  1 | Transport     | `Transport`     | `in_memory` (in-process event queue; no network I/O) — also `realistic` (per-hop latency, jitter, bandwidth, queueing, drop-tail backpressure) |
 |  2 | Communication | `CommsProtocol` | `nest_native` (JSON envelope, base64 payload) |
 |  3 | Identity      | `Identity`      | `did_key` (deterministic public-key signatures for simulation; not Ed25519) |
 |  4 | Registry      | `Registry`      | `in_memory` (dict lookup, no persistence) |
@@ -312,7 +312,11 @@ Two things to know that aren't obvious:
   *is correct*. That's what your plugin is for.
 - **Single process.** No distributed execution.
 - **In-memory transport only out of the box.** No TCP, gRPC, or HTTP
-  yet.
+  yet. The bundled `realistic` transport models per-hop latency, jitter,
+  bandwidth, queueing, and packet loss on top of the same in-process
+  event queue — useful for stressing protocol timing without leaving
+  Tier 1. Pick it via `layers.transport: realistic` and tune knobs in
+  `layers.transport_config` (see `scenarios/marketplace_realistic.yaml`).
 - **Tier 2 is non-deterministic.** Don't use it for benchmarks.
 
 ---
