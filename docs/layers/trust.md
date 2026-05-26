@@ -25,6 +25,20 @@ Source: [`nest_plugins_reference/trust/score_average.py`](../../packages/nest-pl
 The `reputation` scenario exercises this layer — 16 honest + 4
 malicious + 1 observer that samples cheat reports probabilistically.
 
+## Bundled alternative: `eigentrust`
+
+`eigentrust` — EigenTrust-style transitive reputation (Kamvar et al.,
+WWW 2003) with exponential time decay and pre-trusted seeds. Each
+report is weighted by the reporter's own global trust, so a Sybil
+swarm endorsing one of their own cannot overpower an endorsement from
+a pre-trusted seed. Configurable via constructor parameters
+(`alpha`, `decay_lambda`, `pre_trusted`); same `Trust` interface, so
+it is a drop-in replacement.
+
+Source: [`nest_plugins_reference/trust/eigentrust.py`](../../packages/nest-plugins-reference/nest_plugins_reference/trust/eigentrust.py).
+
+Use it in a scenario YAML with `trust: eigentrust`.
+
 ## Writing your own
 
 See [`writing-a-plugin.md`](../writing-a-plugin.md). Register under
