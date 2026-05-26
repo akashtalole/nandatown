@@ -34,6 +34,12 @@ judge = [
     "anthropic>=0.30",
     "openai>=1.0",
 ]
+# Optional extras: the `harness` extra adds plotting deps for analyze.py.
+# Keeping it optional means the core repo (and CI) stays matplotlib-free.
+harness = [
+    "matplotlib>=3.8",
+    "PyYAML>=6.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/mariagorskikh/nest"
@@ -94,12 +100,14 @@ extraPaths = [
     "packages/nest-scenarios",
     "packages/nest-shell",
     "packages/nest-plugins-reference",
+    ".",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["packages", "scripts"]
 addopts = ["--import-mode=importlib", "-m", "not live"]
+pythonpath = ["."]
 markers = [
     "live: end-to-end tests that hit live external services (skipped by default)",
 ]
