@@ -123,9 +123,6 @@ export default async function SkillsPage() {
             to use your API. Write the steps, put your endpoints online, and
             drop the file in below.
           </p>
-          <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-cream-400/70 bg-cream-50 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-400">
-            New here · not yet wired into the rest of Nanda Town
-          </div>
         </div>
       </section>
 
