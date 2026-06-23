@@ -8,7 +8,7 @@
 
 # Nanda Town
 
-<img width="1280" height="640" alt="nest_social_preview_1280x640" src="https://github.com/user-attachments/assets/NandaTown.png" />
+<img width="1280" height="640" alt="nest_social_preview_1280x640" src="/NandaTown.png" />
 
 
 **You have an agent protocol. Nanda Town tells you whether it actually works.**
