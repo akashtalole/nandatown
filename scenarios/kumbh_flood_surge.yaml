@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: Apache-2.0
+# KumbhNet — Simultaneous Flood + Crowd Surge Scenario
+#
+# The most dangerous Kumbh scenario: Godavari river rises during a peak
+# bathing wave while 40% of the network is partitioned.  Tests whether
+# FloodWatch and CrowdSentinel agents can reach a coordinated evacuation
+# decision via gossip registry + BFT coordination when the central
+# CommandBridge is in the isolated partition.
+#
+# Safety properties:
+#   1. Evacuation decision reached within 30 ticks even with CommandBridge cut off.
+#   2. MedEvac dispatches ambulances without waiting for CommandBridge confirmation.
+#   3. No zone CLOSE decision without quorum — flood panic cannot be weaponised
+#      by a Byzantine flood sensor to force mass closure.
+
+name: kumbh_flood_surge
+description: >
+  Simultaneous Godavari flood alert + crowd surge at Ramkund + 40% network
+  partition cutting off CommandBridge.  Validates decentralised evacuation
+  coordination without a central coordinator.
+
+tier: 1
+seed: 20271103  # Mahashtami 2027 — another major bathing day
+
+agents:
+  count: 25
+  brain: state-machine
+  roles:
+    - name: zone_agent
+      count: 12
+    - name: ambulance_agent
+      count: 5
+    - name: flood_watch_agent
+      count: 1
+    - name: crowd_sentinel_agent
+      count: 1
+    - name: med_evac_agent
+      count: 1
+    - name: command_bridge
+      count: 1
+    - name: ndrf_agent
+      count: 1
+    - name: pilgrim_agent
+      count: 3
+
+layers:
+  transport: in_memory
+  comms: nest_native
+  identity: did_key
+  registry: gossip
+  auth: jwt
+  trust: score_average
+  payments: prepaid_credits
+  coordination: contract_net
+  negotiation: alternating_offers
+  memory: blackboard
+  privacy: noop
+  datafacts: datafacts_v1
+
+task:
+  type: kumbh_flood_surge
+  config:
+    godavari_level_cm: 850           # Danger level is 900 cm
+    surge_zone: ramkund_main
+    surge_count: 7500                # Over safe capacity
+    surge_density: 7.2               # RED threshold
+    forecast_mm: 85                  # 85mm rainfall forecast → flood imminent
+
+    # Hard safety rules (replicated in stream processors, not AI-dependent)
+    hard_rules:
+      - rule: kushavart_hard_cap
+        zone: kushavart_kund
+        max_persons: 1900
+        action: HOLD
+      - rule: flood_close_ghats
+        water_level_cm: 900
+        affected_zones: [ramkund_main, ramkund_west, godavari_ghat_1, godavari_ghat_2]
+        action: CLOSE
+
+failures:
+  message_drop: 0.40                 # Heavy monsoon — 40% drop
+  byzantine_agents: 0.08             # 1-2 Byzantine flood sensors
+  network_partition:
+    # CommandBridge is isolated; zones must coordinate without it
+    groups:
+      - ["command-bridge-0"]
+      - ["zone-agent-0", "zone-agent-1", "zone-agent-2",
+         "zone-agent-3", "zone-agent-4", "zone-agent-5",
+         "zone-agent-6", "zone-agent-7", "zone-agent-8",
+         "zone-agent-9", "zone-agent-10", "zone-agent-11",
+         "flood-watch-agent-0", "crowd-sentinel-agent-0",
+         "med-evac-agent-0", "ndrf-agent-0",
+         "ambulance-agent-0", "ambulance-agent-1",
+         "ambulance-agent-2", "ambulance-agent-3",
+         "ambulance-agent-4"]
+
+duration: "ticks: 120"               # 2 hours to reach evacuation decision
+
+metrics:
+  - success_rate
+  - message_count
+  - agent_count
+
+output:
+  trace: ./traces/kumbh_flood_surge.jsonl

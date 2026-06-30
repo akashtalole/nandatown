@@ -1,0 +1,146 @@
+# SPDX-License-Identifier: Apache-2.0
+# KumbhNet — Peak Bathing Day Scenario
+#
+# Simulates 12 zone agents + 5 ambulance agents + 100 pilgrim agents during
+# the Simhastha 2027 peak bathing window (Shahi Snan) under:
+#   - 30% message drop (monsoon / cell tower congestion)
+#   - 15% Byzantine agents (2 zone sensors reporting false counts)
+#   - Network partition isolating Nashik ghats from Trimbakeshwar
+#
+# Safety properties checked by validators:
+#   1. Kushavart Kund never exceeds 1,900 persons without a hold being issued.
+#   2. No zone closes without BFT quorum ≥ 8/12 zone agent votes.
+#   3. Pilgrim medical attributes must not appear in non-medical agent traces.
+#   4. Content-addressed crowd snapshots must have valid CIDs.
+#
+# Seed: 20270729 — Simhastha 2027 peak bathing day date.
+# Same seed → byte-identical trace every run.
+
+name: kumbh_peak_bathing
+description: >
+  Nashik Kumbh Mela 2027 peak bathing day simulation.
+  12 zone agents, 5 ambulances, 100 pilgrims.
+  30% message drop + Byzantine zone sensors + Nashik/Trimbakeshwar partition.
+
+tier: 1
+seed: 20270729
+
+agents:
+  count: 118
+  brain: state-machine
+  roles:
+    - name: zone_agent
+      count: 12
+    - name: ambulance_agent
+      count: 5
+    - name: pilgrim_agent
+      count: 100
+    - name: command_bridge
+      count: 1
+
+layers:
+  transport: in_memory
+  comms: nest_native
+  identity: did_key
+  registry: gossip                    # monsoon-resilient gossip discovery
+  auth: jwt                           # base JWT; delegation handled by kumbh2027 auth plugin
+  trust: score_average
+  payments: prepaid_credits
+  coordination: contract_net          # zone agents override with kumbh_bft_coordination
+  negotiation: alternating_offers
+  memory: blackboard
+  privacy: noop                       # selective disclosure handled by kumbh2027 privacy plugin
+  datafacts: datafacts_v1             # crowd snapshots override with crowd_density_datafacts
+
+task:
+  type: kumbh_peak_bathing
+  config:
+    # Zone configuration (12 zones: 8 Nashik, 4 Trimbakeshwar)
+    zones:
+      - id: kushavart_kund
+        city: trimbakeshwar
+        capacity: 1900
+        area_sqm: 800
+        hard_cap: true
+      - id: ramkund_main
+        city: nashik
+        capacity: 8000
+        area_sqm: 2200
+      - id: ramkund_west
+        city: nashik
+        capacity: 5000
+        area_sqm: 1500
+      - id: saraswati_kund
+        city: nashik
+        capacity: 3000
+        area_sqm: 900
+      - id: godavari_ghat_1
+        city: nashik
+        capacity: 6000
+        area_sqm: 1800
+      - id: godavari_ghat_2
+        city: nashik
+        capacity: 6000
+        area_sqm: 1800
+      - id: panchavati_main
+        city: nashik
+        capacity: 4000
+        area_sqm: 1200
+      - id: tapovan_ghat
+        city: nashik
+        capacity: 3500
+        area_sqm: 1050
+      - id: dudhsagar_ghat
+        city: nashik
+        capacity: 2500
+        area_sqm: 750
+      - id: kushavart_approach
+        city: trimbakeshwar
+        capacity: 5000
+        area_sqm: 1500
+      - id: trimbakeshwar_main
+        city: trimbakeshwar
+        capacity: 4000
+        area_sqm: 1200
+      - id: brahmagiri_ghat
+        city: trimbakeshwar
+        capacity: 3000
+        area_sqm: 900
+
+    # Simulated peak: pilgrims arrive in waves
+    arrival_waves:
+      - tick: 0
+        zone: ramkund_main
+        count: 6500          # approaching RED threshold
+      - tick: 5
+        zone: kushavart_kund
+        count: 1950          # exceeds hard cap → immediate hold
+      - tick: 10
+        zone: godavari_ghat_1
+        count: 5800
+
+    # Bathing window (logical ticks = minutes)
+    bathing_window_start: 0
+    bathing_window_end: 720          # 12 hours
+
+failures:
+  message_drop: 0.30                 # 30% monsoon packet loss
+  byzantine_agents: 0.15             # ~2 zone sensors report false density
+  network_partition:
+    groups:
+      - ["zone-agent-0", "zone-agent-1", "zone-agent-2",
+         "zone-agent-3", "zone-agent-4", "zone-agent-5",
+         "zone-agent-6", "zone-agent-7", "ambulance-agent-0",
+         "ambulance-agent-1", "ambulance-agent-2"]
+      - ["zone-agent-8", "zone-agent-9", "zone-agent-10",
+         "zone-agent-11", "ambulance-agent-3", "ambulance-agent-4"]
+
+duration: "ticks: 720"
+
+metrics:
+  - success_rate
+  - message_count
+  - agent_count
+
+output:
+  trace: ./traces/kumbh_peak_bathing.jsonl
