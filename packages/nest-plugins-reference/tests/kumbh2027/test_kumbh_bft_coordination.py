@@ -191,3 +191,54 @@ async def test_duplicate_vote_ignored() -> None:
     await coord.participate(rnd)  # second call must be a no-op
     votes = rnd.metadata["votes"]
     assert len(votes) == 1
+
+
+# ---------------------------------------------------------------------------
+# Property-based tests (hypothesis)
+# ---------------------------------------------------------------------------
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+
+@given(n=st.integers(min_value=1, max_value=100))
+@settings(max_examples=50)
+def test_quorum_always_exceeds_two_thirds(n: int) -> None:
+    """For any n, quorum(n) > 2n/3 (strictly more than two-thirds)."""
+    q = _quorum(n)
+    assert q > (2 * n) / 3, f"quorum({n})={q} must be > 2n/3={2 * n / 3}"
+
+
+@given(n=st.integers(min_value=1, max_value=100))
+@settings(max_examples=50)
+def test_quorum_byzantine_tolerance(n: int) -> None:
+    """f = n - quorum(n) must be < n/3 for all n > 3."""
+    q = _quorum(n)
+    f = n - q
+    if n > 3:
+        assert f < n / 3, f"n={n}: f={f} must be < n/3={n / 3:.2f}"
+
+
+@given(
+    density=st.floats(min_value=0.0, max_value=20.0, allow_nan=False, allow_infinity=False),
+    count=st.integers(min_value=1901, max_value=5000),
+)
+@settings(max_examples=60)
+def test_kushavart_above_cap_always_closes(density: float, count: int) -> None:
+    """Any count > 1900 at Kushavart must force closure regardless of density."""
+    import asyncio
+
+    async def _run() -> None:
+        coord = KumbhBFTCoordination(AgentId("zone-kushavart"), zone_count=12)
+        task = Task(
+            id="prop-t",
+            description="check",
+            metadata={"zone": "kushavart_kund", "count": count, "density": density},
+        )
+        rnd = await coord.propose(task)
+        outcome = await coord.resolve(rnd)
+        assert outcome.winner == AgentId("close"), (
+            f"count={count} density={density} must force closure"
+        )
+
+    asyncio.run(_run())

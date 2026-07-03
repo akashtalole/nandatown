@@ -153,3 +153,75 @@ async def test_tampered_token_rejected() -> None:
     bad_token = Token(f"{corrupted_b64}|{sig}")
     with pytest.raises(ValueError):
         await auth.verify(bad_token)
+
+
+# ---------------------------------------------------------------------------
+# Property-based tests (hypothesis)
+# ---------------------------------------------------------------------------
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+_ALL_SCOPES = ["zone:close", "zone:hold", "ambulance:dispatch", "flood:alert", "zone:monitor"]
+
+
+@given(
+    scopes=st.lists(st.sampled_from(_ALL_SCOPES), min_size=1, max_size=4, unique=True),
+    subset=st.lists(st.sampled_from(_ALL_SCOPES), min_size=1, max_size=4, unique=True),
+)
+@settings(max_examples=50)
+def test_scope_containment_enforced(scopes: list[str], subset: list[str]) -> None:
+    """A delegated token must never hold more scopes than its parent."""
+    import asyncio
+
+    extra = set(subset) - set(scopes)
+    if not extra:
+        return  # No violation possible with this subset
+
+    async def _run() -> None:
+        auth = NDRFCapabilityDelegation(window_end=_WINDOW_END, clock=0.0)
+        parent = await auth.issue(AgentId("root"), scopes)
+        try:
+            await auth.delegate(parent, AgentId("child"), subset)
+            assert False, f"Should have raised ValueError for extra scopes {extra}"
+        except ValueError as e:
+            assert "scopes not held" in str(e).lower() or "scopes" in str(e).lower()
+
+    asyncio.run(_run())
+
+
+@given(
+    n_delegates=st.integers(min_value=0, max_value=MAX_DEPTH - 1),
+)
+@settings(max_examples=30)
+def test_delegation_chain_within_depth_always_valid(n_delegates: int) -> None:
+    """A chain of n_delegates <= MAX_DEPTH-1 must always verify successfully."""
+    import asyncio
+
+    async def _run() -> None:
+        auth = NDRFCapabilityDelegation(window_end=_WINDOW_END, clock=0.0)
+        token = await auth.issue(AgentId("root"), ["zone:hold"])
+        for i in range(n_delegates):
+            token = await auth.delegate(token, AgentId(f"agent-{i}"), ["zone:hold"])
+        ctx = await auth.verify(token)
+        assert "zone:hold" in ctx.scopes
+
+    asyncio.run(_run())
+
+
+@given(exp=st.floats(min_value=1.0, max_value=1000.0, allow_nan=False))
+@settings(max_examples=40)
+def test_expired_token_always_rejected(exp: float) -> None:
+    """A token verified at now > exp must always raise ValueError."""
+    import asyncio
+
+    async def _run() -> None:
+        auth = NDRFCapabilityDelegation(window_end=max(exp + 1, _WINDOW_END), clock=0.0)
+        token = await auth.issue(AgentId("agent-1"), ["zone:hold"], exp=exp)
+        try:
+            await auth.verify(token, now=exp + 1.0)
+            assert False, "Must raise ValueError for expired token"
+        except ValueError as e:
+            assert "expired" in str(e).lower()
+
+    asyncio.run(_run())

@@ -184,3 +184,80 @@ async def test_wrong_scheme_fails_verification() -> None:
     stmt = Statement(predicate="role_access:medevac", public_inputs={})
     bad_proof = Proof(statement=stmt, data=b"{}", scheme="noop")
     assert not await priv.verify_proof(stmt, bad_proof)
+
+
+# ---------------------------------------------------------------------------
+# Property-based tests (hypothesis)
+# ---------------------------------------------------------------------------
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+
+_ALL_PROFILE_ATTRS = ["name", "photo_hash", "cardiac_care", "diabetes",
+                      "mobility_impaired", "blood_group", "zone_id"]
+_MEDICAL_ATTRS = {"cardiac_care", "diabetes", "mobility_impaired", "blood_group"}
+_PII_ATTRS = {"name", "photo_hash"}
+
+
+@given(
+    values=st.fixed_dictionaries({
+        attr: st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N")))
+        for attr in _ALL_PROFILE_ATTRS
+    })
+)
+@settings(max_examples=40)
+def test_medevac_never_receives_pii(values: dict[str, str]) -> None:
+    """For any pilgrim profile, MedEvac must never see name or photo_hash."""
+    import asyncio, json
+    from nest_core.types import Statement, Witness
+
+    async def _run() -> None:
+        priv = PilgrimSelectiveDisclosure()
+        stmt = Statement(predicate="role_access:medevac", public_inputs={})
+        witness = Witness(private_inputs={"profile": json.dumps(values)})
+        proof = await priv.prove(stmt, witness)
+        payload = json.loads(proof.data.decode())
+        disclosed = set(payload["disclosed"].keys())
+        assert not (disclosed & _PII_ATTRS), f"MedEvac received PII: {disclosed & _PII_ATTRS}"
+
+    asyncio.run(_run())
+
+
+@given(
+    values=st.fixed_dictionaries({
+        attr: st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N")))
+        for attr in _ALL_PROFILE_ATTRS
+    })
+)
+@settings(max_examples=40)
+def test_lostconnect_never_receives_medical(values: dict[str, str]) -> None:
+    """For any pilgrim profile, LostConnect must never see medical attributes."""
+    import asyncio, json
+    from nest_core.types import Statement, Witness
+
+    async def _run() -> None:
+        priv = PilgrimSelectiveDisclosure()
+        stmt = Statement(predicate="role_access:lostconnect", public_inputs={})
+        witness = Witness(private_inputs={"profile": json.dumps(values)})
+        proof = await priv.prove(stmt, witness)
+        payload = json.loads(proof.data.decode())
+        disclosed = set(payload["disclosed"].keys())
+        assert not (disclosed & _MEDICAL_ATTRS), (
+            f"LostConnect received medical data: {disclosed & _MEDICAL_ATTRS}"
+        )
+
+    asyncio.run(_run())
+
+
+@given(
+    attr=st.sampled_from(_ALL_PROFILE_ATTRS),
+    value=st.text(min_size=1, max_size=30, alphabet=st.characters(whitelist_categories=("L", "N"))),
+)
+@settings(max_examples=60)
+def test_commit_is_deterministic_for_any_input(attr: str, value: str) -> None:
+    """For any (attribute, value) pair, _commit must be deterministic."""
+    c1 = _commit(attr, value)
+    c2 = _commit(attr, value)
+    assert c1 == c2, f"_commit({attr!r}, {value!r}) is not deterministic"
+    assert len(c1) == 16, "Commitment must be 16 hex chars"

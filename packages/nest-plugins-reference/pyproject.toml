@@ -36,6 +36,21 @@ Repository = "https://github.com/projnanda/nandatown"
 [project.entry-points."nest.plugins.memory"]
 lww_register = "nest_plugins_reference.memory.lww_register:LwwRegisterMemory"
 
+[project.entry-points."nest.plugins.coordination"]
+kumbh_bft_coordination = "nest_plugins_reference.kumbh2027.kumbh_bft_coordination:KumbhBFTCoordination"
+
+[project.entry-points."nest.plugins.privacy"]
+pilgrim_selective_disclosure = "nest_plugins_reference.kumbh2027.pilgrim_selective_disclosure:PilgrimSelectiveDisclosure"
+
+[project.entry-points."nest.plugins.auth"]
+ndrf_capability_delegation = "nest_plugins_reference.kumbh2027.ndrf_capability_delegation:NDRFCapabilityDelegation"
+
+[project.entry-points."nest.plugins.datafacts"]
+crowd_density_datafacts = "nest_plugins_reference.kumbh2027.crowd_density_datafacts:CrowdDensityDataFacts"
+
+[project.entry-points."nest.plugins.registry"]
+zone_gossip_kumbh = "nest_plugins_reference.kumbh2027.zone_registry_gossip:KumbhZoneGossipRegistry"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

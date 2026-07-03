@@ -210,3 +210,65 @@ async def test_tampered_content_produces_different_url() -> None:
     tampered_url = await df.publish(tampered)
 
     assert original_url != tampered_url, "Tampered snapshot must produce a different CID"
+
+
+# ---------------------------------------------------------------------------
+# Property-based tests (hypothesis)
+# ---------------------------------------------------------------------------
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+
+@given(
+    zone_id=st.sampled_from(["ramkund_main", "kushavart_kund", "godavari_ghat_1"]),
+    status=st.sampled_from(["GREEN", "YELLOW", "RED", "BLACK"]),
+    density=st.floats(min_value=0.0, max_value=10.0, allow_nan=False, allow_infinity=False),
+    count=st.integers(min_value=0, max_value=3000),
+    tick=st.integers(min_value=0, max_value=720),
+)
+@settings(max_examples=60)
+def test_cid_deterministic_for_any_metadata(
+    zone_id: str, status: str, density: float, count: int, tick: int
+) -> None:
+    """_cid must return the same hash for the same metadata, any input."""
+    meta = _zone_meta(zone_id, status, density, tick, count)
+    assert _cid(meta) == _cid(meta), "CID must be deterministic"
+    assert len(_cid(meta)) == 64, "CID must be 64 hex chars"
+
+
+@given(
+    status=st.sampled_from(["RED", "BLACK", "CLOSED"]),
+    density=st.floats(min_value=6.5, max_value=10.0, allow_nan=False),
+)
+@settings(max_examples=40)
+def test_restricted_status_always_iccc_only(status: str, density: float) -> None:
+    """Any RED/BLACK/CLOSED zone snapshot must always be iccc_only."""
+    import asyncio
+
+    async def _run() -> None:
+        df = CrowdDensityDataFacts()
+        meta = _zone_meta("ramkund_main", status, density, 1)
+        url = await df.publish(meta)
+        grant = await df.request_access(url, AgentId("random-pilgrim"))
+        assert grant.tier == "iccc_only", (
+            f"status={status} must produce iccc_only, got {grant.tier}"
+        )
+
+    asyncio.run(_run())
+
+
+@given(
+    density1=st.floats(min_value=0.1, max_value=10.0, allow_nan=False),
+    density2=st.floats(min_value=0.1, max_value=10.0, allow_nan=False),
+)
+@settings(max_examples=50)
+def test_distinct_density_produces_distinct_cid(density1: float, density2: float) -> None:
+    """Two snapshots with different densities must produce different CIDs."""
+    if abs(density1 - density2) < 1e-10:
+        return  # floats too close; skip
+    m1 = _zone_meta("ramkund_main", "GREEN", density1, 1)
+    m2 = _zone_meta("ramkund_main", "GREEN", density2, 1)
+    assert _cid(m1) != _cid(m2), (
+        f"density {density1} and {density2} must produce distinct CIDs"
+    )
