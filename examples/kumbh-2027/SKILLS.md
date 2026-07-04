@@ -87,13 +87,13 @@ Clock values are injected by the caller; freshness is measured in simulation tic
 
 - `examples/kumbh-2027/README.md`: motivation (why centralised dashboards fail
   at Kumbh), design (what each plugin does and why), adversarial invariant
-  table, and runnable verification snippets for both scenarios and the test
+  table, and runnable verification snippets for all three scenarios and the test
   suite.
 - Module-level docstrings explain the threat model, wire format, and
   determinism guarantee for each plugin.
-- Two scenario YAMLs (`kumbh_peak_bathing.yaml`, `kumbh_flood_surge.yaml`) with
-  inline comments explaining every parameter choice and the failure injection
-  rationale.
+- Three scenario YAMLs (`kumbh_peak_bathing.yaml`, `kumbh_flood_surge.yaml`,
+  `kumbh_stampede.yaml`) with inline comments explaining every parameter choice
+  and the failure injection rationale.
 
 ### 5. Novelty (5/5)
 
@@ -113,6 +113,12 @@ KumbhNet is the first Nanda Town submission that:
 5. **Treats pilgrim privacy as a Byzantine isolation problem**: even a fully
    compromised MedEvac agent cannot see attributes outside its disclosure set,
    because the keys are per-attribute, not per-role.
+6. **Simulates the full stampede correlational chain** (`kumbh_stampede`):
+   density surge → crush detection → panic overflow → injured/lost signals →
+   ambulance dispatch → hospital capacity tracking → cordon/disperse orders →
+   lost-and-found reunification — all correlated in a single deterministic trace,
+   anchored to the 2003 Nashik Kumbh disaster (seed: 20030829, 39 killed in
+   under 15 minutes at Ramkund).
 
 ### 6. Persona Fidelity (5/5)
 
@@ -135,6 +141,55 @@ The **disaster-response systems engineer** persona is visible throughout:
 
 ---
 
+## Scenario 3: `kumbh_stampede` — Ramkund Crowd Crush (Simhastha 2027)
+
+**Seed:** `20030829` (anchored to the 2003 Nashik Kumbh disaster — 39 killed in under 15 minutes)
+**Agents:** 82 (8 zone agents, 8 ambulances, 50 pilgrims, CommandBridge, NDRF, SimDriver,
+2 hospitals, LostAndFound, 2 CrowdControl)
+**Failure mode:** `message_drop: 0.15`, `byzantine_agents: 0.05`; Trimbakeshwar partitioned from Nashik
+
+### What it models
+
+Ramkund starts at 87% capacity (7,500 pilgrims, density 7.50 p/sqm). Godavari Ghat 1
+is already at alert level (5,000 pilgrims, density 6.67). A pre-dawn arrival wave at
+t=20 (+2,000 pilgrims) pushes Ramkund to density **9.50 p/sqm**, crossing the 8.5 crush
+threshold and triggering the full response chain:
+
+| t | Event | Agents involved |
+|---|---|---|
+| 20 | `crush:ramkund_main:9.50` | ZoneAgent → broadcast |
+| 20 | `stampede_alert:ramkund_main` | CommandBridge → broadcast |
+| 20 | `casualty:ramkund_main:8` | ZoneAgent → HospitalAgents |
+| 20 | `hospital_accepting:*:8:ramkund_main` | Civil (150 cap) + Wockhardt (80 cap) |
+| 20 | `dispatch:stampede:ramkund_main` | CommandBridge → all 4 nashik ambulances |
+| 20 | `en_route:ambulance-agent-*:ramkund_main` | AmbulanceAgents → broadcast |
+| 20 | `injured:pilgrim-agent-*:ramkund_main:moderate` | PilgrimAgents (prob ∝ density−8.5) |
+| 20 | `lost:pilgrim-agent-*:family-*:ramkund_main` | PilgrimAgents (30% chance) |
+| 20 | `lost_registered:*` + `family_separated:*` | LostAndFoundAgent |
+| 20 | `cordon:ramkund_main:nashik` + `disperse:ramkund_main:all_exits` | CrowdControlAgent |
+| 25 | +500 more → density 10.0 | crowd still pushing in |
+| 40–100 | Departure waves (NDRF evacuation) | density decreases |
+
+### Panic overflow routing
+
+When crush fires, ZoneAgent pushes 20% of the crowd (min 100) to each adjacent zone:
+- `ramkund_main` → `godavari_ghat_1`, `ramkund_west`
+- `godavari_ghat_1` → `godavari_ghat_2`, `ramkund_main`
+- `ramkund_west` → `panchavati_main`, `godavari_ghat_2`
+
+Adjacent zones receiving overflow recompute density and may cascade their own crush events.
+
+### New agent types introduced
+
+- **`LostAndFoundAgent`** — tracks `lost:` signals, indexes by family_id, broadcasts
+  `lost_registered:` and `family_separated:`, resolves `found:` → `reunited:`
+- **`HospitalAgent`** — admits from `casualty:` and `injured:` up to capacity, broadcasts
+  `hospital_accepting:` (count admitted) and `hospital_overflow:` when full
+- **`CrowdControlAgent`** — responds to `stampede_alert:` / `crush:` with `cordon:` +
+  `disperse:`, responds to `crowd_control:` from CommandBridge with `police_action:`
+
+---
+
 ## Running the submission
 
 ```bash
@@ -151,6 +206,7 @@ uv run pyright packages/nest-plugins-reference/nest_plugins_reference/kumbh2027/
 # Scenarios
 nest run scenarios/kumbh_peak_bathing.yaml
 nest run scenarios/kumbh_flood_surge.yaml
+nest run scenarios/kumbh_stampede.yaml
 ```
 
 ## Files
@@ -172,6 +228,7 @@ packages/nest-plugins-reference/
 scenarios/
   kumbh_peak_bathing.yaml   # 118 agents, 30% drop, 15% Byzantine
   kumbh_flood_surge.yaml    # 25 agents, 40% drop, CommandBridge isolated
+  kumbh_stampede.yaml       # 82 agents, crush chain, seed=20030829 (2003 Nashik disaster)
 
 examples/kumbh-2027/
   README.md    # full submission narrative
