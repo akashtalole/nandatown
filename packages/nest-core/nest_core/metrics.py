@@ -39,7 +39,7 @@ def compute_metrics(
 
 def _load_events(path: Path) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
-    with path.open() as f:
+    with path.open(encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:

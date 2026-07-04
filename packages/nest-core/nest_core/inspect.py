@@ -53,7 +53,7 @@ def analyze_trace(path: str | Path) -> TraceSummary:
     min_ts = float("inf")
     max_ts = float("-inf")
 
-    with path.open() as f:
+    with path.open(encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
