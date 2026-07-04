@@ -63,6 +63,11 @@ class ZoneAgent(StateMachineAgent):
         self._city = city
         self._closed = False
         self._processed_wids: set[str] = set()
+        self._crush = False
+        # Crush threshold: 8.5 p/sqm (beyond safe capacity headroom)
+        self._crush_threshold = 8.5
+        # Adjacent zone_id → AgentId mapping for panic overflow routing
+        self._adjacent: dict[str, AgentId] = {}
 
     def _recompute_density(self) -> None:
         # Normalize to [0, 8.0] scale: density=8.0 at full capacity.
@@ -124,6 +129,40 @@ class ZoneAgent(StateMachineAgent):
                 if self._hard_cap and self._count > 1900 and not self._closed:
                     self._closed = True
                     await ctx.broadcast(f"close:{self._zone_id}:hard_cap".encode())
+                # Crush detection: density > 8.5 triggers stampede chain
+                if self._density > self._crush_threshold and not self._crush:
+                    self._crush = True
+                    casualties = max(1, int((self._density - self._crush_threshold) * 8))
+                    await ctx.broadcast(
+                        f"crush:{self._zone_id}:{self._density:.2f}:{self._count}".encode()
+                    )
+                    await ctx.broadcast(
+                        f"casualty:{self._zone_id}:{casualties}".encode()
+                    )
+                    # Panic overflow: push 20% of crowd into each adjacent zone
+                    overflow = max(100, self._count // 5)
+                    for adj_zone, adj_aid in self._adjacent.items():
+                        await ctx.send(
+                            adj_aid,
+                            f"panic_overflow:{self._zone_id}:{adj_zone}:{overflow}".encode(),
+                        )
+
+        elif msg.startswith("panic_overflow:"):
+            parts = msg.split(":")
+            if len(parts) >= 4 and parts[2] == self._zone_id:
+                overflow = int(parts[3])
+                self._count += overflow
+                self._recompute_density()
+                await ctx.broadcast(
+                    f"density:{self._zone_id}:{self._density:.2f}:{self._count}".encode()
+                )
+                if self._density > self._crush_threshold and not self._crush:
+                    self._crush = True
+                    casualties = max(1, int((self._density - self._crush_threshold) * 8))
+                    await ctx.broadcast(
+                        f"crush:{self._zone_id}:{self._density:.2f}:{self._count}".encode()
+                    )
+                    await ctx.broadcast(f"casualty:{self._zone_id}:{casualties}".encode())
 
         elif msg.startswith("departure:"):
             parts = msg.split(":")
@@ -175,6 +214,13 @@ class AmbulanceAgent(StateMachineAgent):
         if msg.startswith("dispatch:"):
             self._dispatched += 1
             await ctx.send(sender, f"dispatched:{self._id}:{self._dispatched}".encode())
+            # For stampede dispatches, broadcast en_route so all agents know
+            if "stampede" in msg:
+                parts = msg.split(":")
+                zone = parts[2] if len(parts) >= 3 else "unknown"
+                await ctx.broadcast(
+                    f"en_route:{self._id}:{zone}:{self._city}".encode()
+                )
 
 
 class PilgrimAgent(StateMachineAgent):
@@ -185,10 +231,13 @@ class PilgrimAgent(StateMachineAgent):
         agent = PilgrimAgent(AgentId("pilgrim-agent-0"), zone_id="ramkund_main")
     """
 
-    def __init__(self, agent_id: AgentId, zone_id: str = "ramkund_main") -> None:
+    def __init__(self, agent_id: AgentId, zone_id: str = "ramkund_main", family_id: str = "family-0") -> None:
         self._id = agent_id
         self._zone_id = zone_id
+        self._family_id = family_id
         self._sos_sent = False
+        self._injured = False
+        self._lost = False
 
     async def on_start(self, ctx: AgentContext) -> None:
         card = AgentCard(
@@ -217,6 +266,25 @@ class PilgrimAgent(StateMachineAgent):
                 self._sos_sent = True
                 await ctx.broadcast(f"sos:{self._id}:{self._zone_id}:closed".encode())
 
+        if msg.startswith("crush:") and not self._injured:
+            parts = msg.split(":")
+            if len(parts) >= 3 and parts[1] == self._zone_id:
+                density = float(parts[2])
+                # Injury probability scales with density above crush threshold
+                injury_prob = min(0.9, (density - 8.5) / 3.0)
+                if ctx.rng.random() < injury_prob:
+                    self._injured = True
+                    severity = "critical" if density > 10.5 else "moderate"
+                    await ctx.broadcast(
+                        f"injured:{self._id}:{self._zone_id}:{severity}:{density:.1f}".encode()
+                    )
+                # Separation probability: 30% chance of getting lost from family
+                if ctx.rng.random() < 0.30 and not self._lost:
+                    self._lost = True
+                    await ctx.broadcast(
+                        f"lost:{self._id}:{self._family_id}:{self._zone_id}".encode()
+                    )
+
 
 class CommandBridgeAgent(StateMachineAgent):
     """Central command: aggregates alerts, issues closures.
@@ -226,11 +294,14 @@ class CommandBridgeAgent(StateMachineAgent):
         agent = CommandBridgeAgent(AgentId("command-bridge-0"))
     """
 
-    def __init__(self, agent_id: AgentId) -> None:
+    def __init__(self, agent_id: AgentId, ambulance_ids: list[AgentId] | None = None) -> None:
         self._id = agent_id
         self._alerts: list[str] = []
         self._closures: list[str] = []
         self._density_log: dict[str, list[tuple[float, float, int]]] = {}
+        self._stampede_zones: set[str] = set()
+        # Pre-wired ambulance IDs for direct dispatch (no registry lookup needed)
+        self._ambulance_ids: list[AgentId] = ambulance_ids or []
 
     async def on_start(self, ctx: AgentContext) -> None:
         card = AgentCard(
@@ -260,6 +331,17 @@ class CommandBridgeAgent(StateMachineAgent):
                     if zone_id not in self._closures:
                         await ctx.broadcast(f"close:{zone_id}:command".encode())
                         self._closures.append(zone_id)
+                # Crush density (>8.5) — trigger full stampede response even if
+                # the explicit crush: message was dropped by the network
+                if density > 8.5 and zone_id not in self._stampede_zones:
+                    self._stampede_zones.add(zone_id)
+                    await ctx.broadcast(f"stampede_alert:{zone_id}:{ctx.time:.0f}".encode())
+                    await ctx.broadcast(f"crowd_control:{zone_id}:disperse".encode())
+                    for amb_id in self._ambulance_ids:
+                        await ctx.send(
+                            amb_id,
+                            f"dispatch:stampede:{zone_id}:{ctx.time:.0f}".encode(),
+                        )
 
         elif msg.startswith("sos:"):
             self._alerts.append(f"SOS@t={ctx.time:.0f}:{msg}")
@@ -269,6 +351,22 @@ class CommandBridgeAgent(StateMachineAgent):
                 ambulances = await registry.lookup(Query(capabilities=["ambulance:dispatch"]))
                 if ambulances:
                     await ctx.send(ambulances[0].agent_id, f"dispatch:{msg}".encode())
+
+        elif msg.startswith("crush:") or msg.startswith("stampede_alert:"):
+            parts = msg.split(":")
+            zone = parts[1] if len(parts) >= 2 else "unknown"
+            if zone not in self._stampede_zones:
+                self._stampede_zones.add(zone)
+                await ctx.broadcast(
+                    f"stampede_alert:{zone}:{ctx.time:.0f}".encode()
+                )
+                await ctx.broadcast(f"crowd_control:{zone}:disperse".encode())
+                # Dispatch ALL ambulances to stampede zone
+                for amb_id in self._ambulance_ids:
+                    await ctx.send(
+                        amb_id,
+                        f"dispatch:stampede:{zone}:{ctx.time:.0f}".encode(),
+                    )
 
 
 class FloodWatchAgent(StateMachineAgent):
@@ -372,6 +470,170 @@ class NDRFAgent(StateMachineAgent):
                 if zone_id not in self._evacuations:
                     self._evacuations.append(zone_id)
                     await ctx.broadcast(f"close:{zone_id}:surge".encode())
+
+
+class LostAndFoundAgent(StateMachineAgent):
+    """Collects lost-pilgrim signals and broadcasts reunification when a match is found.
+
+    Lost pilgrims broadcast ``lost:<pilgrim_id>:<family_id>:<zone_id>``.
+    When rescuers find someone they broadcast ``found:<pilgrim_id>:<zone_id>``.
+    LostAndFound matches them and broadcasts ``reunited:``.
+
+    Example::
+
+        agent = LostAndFoundAgent(AgentId("lost-and-found-0"))
+    """
+
+    def __init__(self, agent_id: AgentId) -> None:
+        self._id = agent_id
+        # pilgrim_id → {family_id, zone_id, t}
+        self._lost: dict[str, dict[str, Any]] = {}
+        # family_id → [pilgrim_id, ...]
+        self._family_index: dict[str, list[str]] = {}
+        self._reunited: set[str] = set()
+
+    async def on_start(self, ctx: AgentContext) -> None:
+        registry = ctx.plugins.get("registry")
+        if registry:
+            await registry.register(AgentCard(
+                agent_id=self._id,
+                name="LostAndFound",
+                capabilities=["lost:register", "lost:search"],
+                metadata={"role": "lost_and_found"},
+            ))
+
+    async def on_message(self, ctx: AgentContext, sender: AgentId, payload: bytes) -> None:
+        msg = payload.decode("utf-8", errors="replace")
+        if msg.startswith("lost:"):
+            parts = msg.split(":")
+            if len(parts) >= 4:
+                pilgrim_id, family_id, zone_id = parts[1], parts[2], parts[3]
+                if pilgrim_id not in self._lost:
+                    self._lost[pilgrim_id] = {
+                        "family_id": family_id, "zone_id": zone_id, "t": ctx.time
+                    }
+                    self._family_index.setdefault(family_id, []).append(pilgrim_id)
+                    await ctx.broadcast(
+                        f"lost_registered:{pilgrim_id}:{family_id}:{zone_id}".encode()
+                    )
+                    # Check if other family members are already lost — report group
+                    group = self._family_index.get(family_id, [])
+                    if len(group) > 1:
+                        await ctx.broadcast(
+                            f"family_separated:{family_id}:{len(group)}:{zone_id}".encode()
+                        )
+
+        elif msg.startswith("found:"):
+            parts = msg.split(":")
+            if len(parts) >= 3:
+                pilgrim_id, zone_id = parts[1], parts[2]
+                if pilgrim_id in self._lost and pilgrim_id not in self._reunited:
+                    self._reunited.add(pilgrim_id)
+                    family_id = self._lost[pilgrim_id]["family_id"]
+                    await ctx.broadcast(
+                        f"reunited:{pilgrim_id}:{family_id}:{zone_id}:{ctx.time:.0f}".encode()
+                    )
+
+
+class HospitalAgent(StateMachineAgent):
+    """Receives casualty and injury reports; tracks capacity; alerts on overflow.
+
+    Example::
+
+        agent = HospitalAgent(AgentId("hospital-0"), capacity=150, name="Civil Hospital Nashik")
+    """
+
+    def __init__(self, agent_id: AgentId, capacity: int = 150, name: str = "Civil Hospital") -> None:
+        self._id = agent_id
+        self._capacity = capacity
+        self._name = name
+        self._admitted = 0
+        self._rejected = 0
+
+    async def on_start(self, ctx: AgentContext) -> None:
+        registry = ctx.plugins.get("registry")
+        if registry:
+            await registry.register(AgentCard(
+                agent_id=self._id,
+                name=self._name,
+                capabilities=["hospital:admit", "hospital:status"],
+                metadata={"capacity": str(self._capacity), "role": "hospital"},
+            ))
+        await ctx.broadcast(
+            f"hospital_ready:{self._id}:{self._capacity}".encode()
+        )
+
+    async def on_message(self, ctx: AgentContext, sender: AgentId, payload: bytes) -> None:
+        msg = payload.decode("utf-8", errors="replace")
+        if msg.startswith("casualty:") or msg.startswith("injured:"):
+            parts = msg.split(":")
+            zone = parts[1] if len(parts) >= 2 else "unknown"
+            # Estimate admission need
+            count = int(parts[2]) if msg.startswith("casualty:") and len(parts) >= 3 else 1
+            available = self._capacity - self._admitted
+            accepting = min(count, available)
+            overflow = count - accepting
+            self._admitted += accepting
+            self._rejected += overflow
+            if accepting > 0:
+                await ctx.broadcast(
+                    f"hospital_accepting:{self._id}:{accepting}:{zone}:{self._admitted}/{self._capacity}".encode()
+                )
+            if overflow > 0 or self._admitted >= self._capacity:
+                await ctx.broadcast(
+                    f"hospital_overflow:{self._id}:{self._admitted}:{overflow}".encode()
+                )
+
+        elif msg.startswith("en_route:"):
+            # Ambulance en route — acknowledge
+            parts = msg.split(":")
+            ambulance_id = parts[1] if len(parts) >= 2 else "unknown"
+            await ctx.send(
+                sender,
+                f"hospital_directions:{self._id}:{self._admitted}/{self._capacity}".encode(),
+            )
+
+
+class CrowdControlAgent(StateMachineAgent):
+    """Police crowd control: receives stampede alerts, issues dispersal and cordon orders.
+
+    Coordinates with ambulances, directs pilgrim flow away from crush zones.
+
+    Example::
+
+        agent = CrowdControlAgent(AgentId("crowd-control-0"), sector="nashik-riverside")
+    """
+
+    def __init__(self, agent_id: AgentId, sector: str = "nashik") -> None:
+        self._id = agent_id
+        self._sector = sector
+        self._cordoned: set[str] = set()
+
+    async def on_start(self, ctx: AgentContext) -> None:
+        registry = ctx.plugins.get("registry")
+        if registry:
+            await registry.register(AgentCard(
+                agent_id=self._id,
+                name=f"CrowdControl-{self._sector}",
+                capabilities=["crowd:cordon", "crowd:disperse"],
+                metadata={"sector": self._sector, "role": "crowd_control"},
+            ))
+
+    async def on_message(self, ctx: AgentContext, sender: AgentId, payload: bytes) -> None:
+        msg = payload.decode("utf-8", errors="replace")
+        if msg.startswith("stampede_alert:") or msg.startswith("crush:"):
+            parts = msg.split(":")
+            zone = parts[1] if len(parts) >= 2 else "unknown"
+            if zone not in self._cordoned:
+                self._cordoned.add(zone)
+                await ctx.broadcast(f"cordon:{zone}:{self._sector}:{ctx.time:.0f}".encode())
+                await ctx.broadcast(f"disperse:{zone}:all_exits:{ctx.time:.0f}".encode())
+
+        elif msg.startswith("crowd_control:"):
+            parts = msg.split(":")
+            zone = parts[1] if len(parts) >= 2 else "unknown"
+            action = parts[2] if len(parts) >= 3 else "hold"
+            await ctx.broadcast(f"police_action:{zone}:{action}:{ctx.time:.0f}".encode())
 
 
 class SimDriverAgent(StateMachineAgent):
@@ -636,5 +898,112 @@ def kumbh_flood_surge_factory(
 # Auto-register on import
 # ---------------------------------------------------------------------------
 
+def kumbh_stampede_factory(
+    config: ScenarioConfig, plugins: dict[str, Any]
+) -> dict[AgentId, Any]:
+    """Build stampede simulation fleet.
+
+    Roles: 12 zone agents (high initial density), 8 ambulances,
+    50 pilgrims (with family groups), LostAndFound, 2 hospitals,
+    2 CrowdControl, CommandBridge, NDRF, SimDriver.
+
+    Example::
+
+        agents = kumbh_stampede_factory(config, plugins)
+    """
+    agents: dict[AgentId, Any] = {}
+    task_cfg = config.task.config or {}
+
+    # ── Zone agents ────────────────────────────────────────────────────
+    zone_cfgs: list[dict[str, Any]] = task_cfg.get("zones", [])
+    zone_map: dict[str, AgentId] = {}
+    zone_agents: dict[AgentId, ZoneAgent] = {}
+    for i, z in enumerate(zone_cfgs):
+        aid = AgentId(f"zone-agent-{i}")
+        za = ZoneAgent(
+            agent_id=aid,
+            zone_id=z["id"],
+            capacity=z.get("capacity", 5000),
+            count=z.get("initial_count", 0),
+            hard_cap=z.get("hard_cap", False),
+            city=z.get("city", "nashik"),
+        )
+        agents[aid] = za
+        zone_agents[aid] = za
+        zone_map[z["id"]] = aid
+
+    # Wire adjacency so crush zones can push overflow to neighbours
+    adjacency: dict[str, list[str]] = task_cfg.get("adjacency", {})
+    for zone_id, neighbours in adjacency.items():
+        src_aid = zone_map.get(zone_id)
+        if src_aid and src_aid in zone_agents:
+            zone_agents[src_aid]._adjacent = {
+                n: zone_map[n] for n in neighbours if n in zone_map
+            }
+
+    # ── Ambulances ─────────────────────────────────────────────────────
+    n_ambulances: int = next(
+        (r.count for r in config.agents.roles if r.name == "ambulance_agent"), 8
+    )
+    ambulance_ids: list[AgentId] = []
+    for i in range(n_ambulances):
+        aid = AgentId(f"ambulance-agent-{i}")
+        agents[aid] = AmbulanceAgent(aid, city="nashik" if i < 5 else "trimbakeshwar")
+        ambulance_ids.append(aid)
+
+    # ── Pilgrims in family groups ───────────────────────────────────────
+    n_pilgrims: int = next(
+        (r.count for r in config.agents.roles if r.name == "pilgrim_agent"), 50
+    )
+    zones_list = [z["id"] for z in zone_cfgs]
+    # Distribute pilgrims with family groups of 3
+    for i in range(n_pilgrims):
+        aid = AgentId(f"pilgrim-agent-{i}")
+        zone_id = zones_list[i % len(zones_list)] if zones_list else "ramkund_main"
+        family_id = f"family-{i // 3}"
+        agents[aid] = PilgrimAgent(aid, zone_id=zone_id, family_id=family_id)
+
+    # ── Lost and Found ─────────────────────────────────────────────────
+    lnf_id = AgentId("lost-and-found-0")
+    agents[lnf_id] = LostAndFoundAgent(lnf_id)
+
+    # ── Hospitals ──────────────────────────────────────────────────────
+    hospitals: list[dict[str, Any]] = task_cfg.get("hospitals", [
+        {"name": "Civil Hospital Nashik", "capacity": 150},
+        {"name": "Wockhardt Hospital",    "capacity": 80},
+    ])
+    for i, h in enumerate(hospitals):
+        hid = AgentId(f"hospital-agent-{i}")
+        agents[hid] = HospitalAgent(hid, capacity=h.get("capacity", 100), name=h.get("name", f"Hospital-{i}"))
+
+    # ── Crowd Control (police) ──────────────────────────────────────────
+    for i, sector in enumerate(["nashik-riverside", "nashik-inner"]):
+        cid = AgentId(f"crowd-control-{i}")
+        agents[cid] = CrowdControlAgent(cid, sector=sector)
+
+    # ── Command Bridge — pre-wired with ambulance IDs for direct dispatch ─
+    agents[AgentId("command-bridge-0")] = CommandBridgeAgent(
+        AgentId("command-bridge-0"), ambulance_ids=ambulance_ids
+    )
+
+    # ── NDRF ──────────────────────────────────────────────────────────
+    agents[AgentId("ndrf-agent-0")] = NDRFAgent(AgentId("ndrf-agent-0"))
+
+    # ── Simulation driver ──────────────────────────────────────────────
+    arrival_waves: list[dict[str, Any]] = task_cfg.get("arrival_waves", [])
+    departure_waves: list[dict[str, Any]] = task_cfg.get("departure_waves", [])
+    drv_id = AgentId("sim-driver-0")
+    agents[drv_id] = SimDriverAgent(drv_id, arrival_waves, departure_waves, zone_map)
+
+    # ── Per-agent registry instances ────────────────────────────────────
+    agent_plugins: dict[AgentId, dict[str, Any]] = {
+        aid: {"registry": KumbhZoneGossipRegistry(aid)} for aid in agents
+    }
+    plugins["_agent_plugins"] = agent_plugins
+
+    return agents
+
+
 register_scenario("kumbh_peak_bathing", kumbh_peak_bathing_factory)
 register_scenario("kumbh_flood_surge", kumbh_flood_surge_factory)
+register_scenario("kumbh_stampede", kumbh_stampede_factory)
