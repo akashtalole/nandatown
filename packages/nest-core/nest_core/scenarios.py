@@ -97,5 +97,5 @@ def _try_load_builtin(name: str) -> None:
         )
 
         register_scenario("receipt_reputation", receipt_reputation_factory)
-    elif name in ("kumbh_peak_bathing", "kumbh_flood_surge"):
-        import nest_plugins_reference.kumbh2027.scenarios  # registers both  # noqa: F401
+    elif name in ("kumbh_peak_bathing", "kumbh_flood_surge", "kumbh_stampede"):
+        import nest_plugins_reference.kumbh2027.scenarios  # registers all three  # noqa: F401
