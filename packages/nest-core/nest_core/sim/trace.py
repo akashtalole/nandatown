@@ -29,7 +29,7 @@ class TraceWriter:
         self._path = Path(path)
         self._buffer: list[dict[str, Any]] = []
         self._buffer_size = buffer_size
-        self._file = self._path.open("w")
+        self._file = self._path.open("w", encoding="utf-8")
 
     def record(self, event: dict[str, Any]) -> None:
         """Record an event to the trace buffer.
