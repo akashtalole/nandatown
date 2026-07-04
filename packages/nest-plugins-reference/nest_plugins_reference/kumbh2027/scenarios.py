@@ -18,8 +18,13 @@ from typing import Any
 from nest_core.scenario import ScenarioConfig
 from nest_core.scenarios import register_scenario
 from nest_core.sim.agent import AgentContext, StateMachineAgent
-from nest_core.types import AgentCard, AgentId, Task
+from nest_core.types import AgentCard, AgentId, Query
 from nest_plugins_reference.kumbh2027.zone_registry_gossip import KumbhZoneGossipRegistry
+
+# Periodic density re-broadcast interval (ticks)
+_DENSITY_TICK_INTERVAL = 30
+_DRIVER_TICK = b"__driver_tick__"
+_ZONE_TICK = b"__zone_tick__"
 
 
 # ---------------------------------------------------------------------------
@@ -29,6 +34,9 @@ from nest_plugins_reference.kumbh2027.zone_registry_gossip import KumbhZoneGossi
 
 class ZoneAgent(StateMachineAgent):
     """Simulates a physical Kumbh zone: publishes density, votes on closure.
+
+    Schedules periodic self-ticks to re-broadcast density so the command
+    bridge sees crowd dynamics over time.
 
     Example::
 
@@ -54,6 +62,12 @@ class ZoneAgent(StateMachineAgent):
         self._hard_cap = hard_cap
         self._city = city
         self._closed = False
+        self._processed_wids: set[str] = set()
+
+    def _recompute_density(self) -> None:
+        # Normalize to [0, 8.0] scale: density=8.0 at full capacity.
+        # Threshold 6.5 ≈ 81% capacity; SOS threshold 7.0 ≈ 87.5% capacity.
+        self._density = self._count * 8.0 / max(1, self._capacity)
 
     async def on_start(self, ctx: AgentContext) -> None:
         card = AgentCard(
@@ -70,27 +84,61 @@ class ZoneAgent(StateMachineAgent):
         registry = ctx.plugins.get("registry")
         if registry:
             await registry.register(card)
-        # Announce initial density to all peers
+        self._recompute_density()
+        # Announce initial density
         await ctx.broadcast(
-            f"density:{self._zone_id}:{self._density}:{self._count}".encode()
+            f"density:{self._zone_id}:{self._density:.2f}:{self._count}".encode()
         )
+        # Arm first periodic re-broadcast tick
+        await ctx.schedule(_DENSITY_TICK_INTERVAL, _ZONE_TICK)
 
     async def on_message(self, ctx: AgentContext, sender: AgentId, payload: bytes) -> None:
+        # Periodic self-tick: re-broadcast current density
+        if payload == _ZONE_TICK:
+            self._recompute_density()
+            await ctx.broadcast(
+                f"density:{self._zone_id}:{self._density:.2f}:{self._count}".encode()
+            )
+            if not self._closed:
+                await ctx.schedule(_DENSITY_TICK_INTERVAL, _ZONE_TICK)
+            return
+
         msg = payload.decode("utf-8", errors="replace")
 
         if msg.startswith("arrival:"):
-            # arrival:<zone_id>:<count>
+            # arrival:<zone_id>:<count>:<wid>  — wid deduplicates redundant copies
             parts = msg.split(":")
             if len(parts) >= 3 and parts[1] == self._zone_id:
-                self._count += int(parts[2])
-                self._density = self._count / max(1, self._capacity / 1000)
+                wid = parts[3] if len(parts) >= 4 else None
+                if wid and wid in self._processed_wids:
+                    return
+                if wid:
+                    self._processed_wids.add(wid)
+                delta = int(parts[2])
+                self._count += delta
+                self._recompute_density()
                 await ctx.broadcast(
-                    f"density:{self._zone_id}:{self._density}:{self._count}".encode()
+                    f"density:{self._zone_id}:{self._density:.2f}:{self._count}".encode()
                 )
                 # Hard cap check — Kushavart Kund
                 if self._hard_cap and self._count > 1900 and not self._closed:
                     self._closed = True
                     await ctx.broadcast(f"close:{self._zone_id}:hard_cap".encode())
+
+        elif msg.startswith("departure:"):
+            parts = msg.split(":")
+            if len(parts) >= 3 and parts[1] == self._zone_id:
+                wid = parts[3] if len(parts) >= 4 else None
+                if wid and wid in self._processed_wids:
+                    return
+                if wid:
+                    self._processed_wids.add(wid)
+                delta = int(parts[2])
+                self._count = max(0, self._count - delta)
+                self._recompute_density()
+                await ctx.broadcast(
+                    f"density:{self._zone_id}:{self._density:.2f}:{self._count}".encode()
+                )
 
         elif msg.startswith("close:"):
             parts = msg.split(":")
@@ -155,11 +203,19 @@ class PilgrimAgent(StateMachineAgent):
 
     async def on_message(self, ctx: AgentContext, sender: AgentId, payload: bytes) -> None:
         msg = payload.decode("utf-8", errors="replace")
+        if msg.startswith("density:") and not self._sos_sent:
+            parts = msg.split(":")
+            if len(parts) >= 4 and parts[1] == self._zone_id:
+                density = float(parts[2])
+                # SOS when density is critically high
+                if density > 7.0:
+                    self._sos_sent = True
+                    await ctx.broadcast(f"sos:{self._id}:{self._zone_id}:{density:.2f}".encode())
         if msg.startswith("close:") and not self._sos_sent:
             parts = msg.split(":")
             if len(parts) >= 2 and parts[1] == self._zone_id:
                 self._sos_sent = True
-                await ctx.broadcast(f"sos:{self._id}:{self._zone_id}".encode())
+                await ctx.broadcast(f"sos:{self._id}:{self._zone_id}:closed".encode())
 
 
 class CommandBridgeAgent(StateMachineAgent):
@@ -174,6 +230,7 @@ class CommandBridgeAgent(StateMachineAgent):
         self._id = agent_id
         self._alerts: list[str] = []
         self._closures: list[str] = []
+        self._density_log: dict[str, list[tuple[float, float, int]]] = {}
 
     async def on_start(self, ctx: AgentContext) -> None:
         card = AgentCard(
@@ -191,17 +248,22 @@ class CommandBridgeAgent(StateMachineAgent):
         if msg.startswith("density:"):
             parts = msg.split(":")
             if len(parts) >= 4:
-                zone_id, density, count = parts[1], float(parts[2]), int(parts[3])
+                zone_id = parts[1]
+                density = float(parts[2])
+                count = int(parts[3])
+                log = self._density_log.setdefault(zone_id, [])
+                log.append((ctx.time, density, count))
                 if density > 6.5 or (zone_id == "kushavart_kund" and count > 1900):
-                    alert = f"ALERT:{zone_id}:density={density:.1f}"
+                    alert = f"ALERT:{zone_id}:density={density:.2f}:count={count}:t={ctx.time:.0f}"
                     self._alerts.append(alert)
-                    await ctx.broadcast(f"close:{zone_id}:command".encode())
-                    self._closures.append(zone_id)
+                    await ctx.broadcast(f"alert:{zone_id}:{density:.2f}:{count}:{ctx.time:.0f}".encode())
+                    if zone_id not in self._closures:
+                        await ctx.broadcast(f"close:{zone_id}:command".encode())
+                        self._closures.append(zone_id)
 
         elif msg.startswith("sos:"):
-            self._alerts.append(msg)
-            # Try to dispatch an ambulance via per-agent gossip registry
-            from nest_core.types import Query
+            self._alerts.append(f"SOS@t={ctx.time:.0f}:{msg}")
+            await ctx.broadcast(f"alert:sos:{msg}:{ctx.time:.0f}".encode())
             registry = ctx.plugins.get("registry")
             if registry is not None:
                 ambulances = await registry.lookup(Query(capabilities=["ambulance:dispatch"]))
@@ -212,15 +274,28 @@ class CommandBridgeAgent(StateMachineAgent):
 class FloodWatchAgent(StateMachineAgent):
     """Monitors Godavari water level; issues flood alert when threshold crossed.
 
+    Water level rises gradually per tick; broadcasts periodic level updates
+    so correlated data shows the rising flood timeline.
+
     Example::
 
         agent = FloodWatchAgent(AgentId("flood-watch-agent-0"), level_cm=850, threshold_cm=900)
     """
 
-    def __init__(self, agent_id: AgentId, level_cm: int = 850, threshold_cm: int = 900) -> None:
+    _FLOOD_TICK = b"__flood_tick__"
+    _FLOOD_TICK_INTERVAL = 10
+
+    def __init__(
+        self,
+        agent_id: AgentId,
+        level_cm: int = 850,
+        threshold_cm: int = 900,
+        rise_per_tick: float = 0.0,
+    ) -> None:
         self._id = agent_id
-        self._level_cm = level_cm
+        self._level_cm = float(level_cm)
         self._threshold_cm = threshold_cm
+        self._rise_per_tick = rise_per_tick
         self._alerted = False
 
     async def on_start(self, ctx: AgentContext) -> None:
@@ -230,16 +305,34 @@ class FloodWatchAgent(StateMachineAgent):
                 agent_id=self._id,
                 name="FloodWatch",
                 capabilities=["flood:monitor"],
-                metadata={"level_cm": str(self._level_cm)},
+                metadata={"level_cm": str(int(self._level_cm))},
             ))
+        await ctx.broadcast(f"water_level:godavari:{self._level_cm:.0f}".encode())
         if self._level_cm >= self._threshold_cm and not self._alerted:
             self._alerted = True
-            await ctx.broadcast(
-                f"flood_alert:godavari:{self._level_cm}".encode()
-            )
+            await ctx.broadcast(f"flood_alert:godavari:{self._level_cm:.0f}".encode())
+        if self._rise_per_tick > 0:
+            await ctx.schedule(self._FLOOD_TICK_INTERVAL, self._FLOOD_TICK)
 
     async def on_message(self, ctx: AgentContext, sender: AgentId, payload: bytes) -> None:
-        pass
+        msg = payload.decode("utf-8", errors="replace")
+        if payload == self._FLOOD_TICK:
+            self._level_cm += self._rise_per_tick * self._FLOOD_TICK_INTERVAL
+            await ctx.broadcast(f"water_level:godavari:{self._level_cm:.0f}".encode())
+            if self._level_cm >= self._threshold_cm and not self._alerted:
+                self._alerted = True
+                await ctx.broadcast(f"flood_alert:godavari:{self._level_cm:.0f}".encode())
+            else:
+                await ctx.schedule(self._FLOOD_TICK_INTERVAL, self._FLOOD_TICK)
+        elif msg.startswith("water_level_update:"):
+            # Driven by SimDriverAgent — not subject to Byzantine self-tick corruption
+            parts = msg.split(":")
+            if len(parts) >= 3:
+                self._level_cm = float(parts[2])
+                await ctx.broadcast(f"water_level:godavari:{self._level_cm:.0f}".encode())
+                if self._level_cm >= self._threshold_cm and not self._alerted:
+                    self._alerted = True
+                    await ctx.broadcast(f"flood_alert:godavari:{self._level_cm:.0f}".encode())
 
 
 class NDRFAgent(StateMachineAgent):
@@ -268,8 +361,10 @@ class NDRFAgent(StateMachineAgent):
         msg = payload.decode("utf-8", errors="replace")
         if msg.startswith("flood_alert:"):
             for zone in ["ramkund_main", "ramkund_west", "godavari_ghat_1", "godavari_ghat_2"]:
-                self._evacuations.append(zone)
-                await ctx.broadcast(f"close:{zone}:flood".encode())
+                if zone not in self._evacuations:
+                    self._evacuations.append(zone)
+                    await ctx.broadcast(f"close:{zone}:flood".encode())
+                    await ctx.broadcast(f"evacuation:{zone}:{ctx.time:.0f}".encode())
         elif msg.startswith("density:"):
             parts = msg.split(":")
             if len(parts) >= 4 and float(parts[2]) > 6.5:
@@ -279,6 +374,88 @@ class NDRFAgent(StateMachineAgent):
                     await ctx.broadcast(f"close:{zone_id}:surge".encode())
 
 
+class SimDriverAgent(StateMachineAgent):
+    """Injects arrival/departure waves into the simulation at configured ticks.
+
+    Uses direct ``ctx.send()`` to the specific zone agent (bypassing partition
+    for the simulation driver itself) so crowd dynamics are delivered reliably
+    even under high message-drop rates.  Zone agents still receive 30% drop on
+    their subsequent *broadcasts* to peers, preserving the adversarial fidelity.
+
+    Example::
+
+        agent = SimDriverAgent(AgentId("sim-driver-0"),
+                               waves=[{"tick": 60, "zone": "ramkund_main", "count": 2000}],
+                               zone_agents={"ramkund_main": AgentId("zone-agent-1")})
+    """
+
+    def __init__(
+        self,
+        agent_id: AgentId,
+        arrival_waves: list[dict[str, Any]],
+        departure_waves: list[dict[str, Any]] | None = None,
+        zone_agents: dict[str, AgentId] | None = None,
+        flood_watch_id: AgentId | None = None,
+        flood_waves: list[dict[str, Any]] | None = None,
+    ) -> None:
+        self._id = agent_id
+        self._arrival_waves = sorted(arrival_waves, key=lambda w: w.get("tick", 0))
+        self._departure_waves = sorted(departure_waves or [], key=lambda w: w.get("tick", 0))
+        self._zone_agents: dict[str, AgentId] = zone_agents or {}
+        self._flood_watch_id = flood_watch_id
+        self._flood_waves = sorted(flood_waves or [], key=lambda w: w.get("tick", 0))
+
+    async def on_start(self, ctx: AgentContext) -> None:
+        # Each wave is scheduled 3x (at tick, tick+0.5, tick+1.0) so that
+        # 40% random message drop (which applies to ctx.schedule self-messages)
+        # is unlikely to kill all copies: P(all 3 dropped) = 0.064 per wave.
+        # Arrival/departure waves include a wave-id so ZoneAgent deduplicates.
+        all_waves: list[tuple[float, bytes, AgentId | None]] = []
+        for wid, wave in enumerate(self._arrival_waves):
+            tick = float(wave.get("tick", 0))
+            zone = wave["zone"]
+            count = int(wave.get("count", 0))
+            target = self._zone_agents.get(zone)
+            msg = f"arrival:{zone}:{count}:w{wid}".encode()
+            all_waves.append((tick, msg, target))
+            all_waves.append((tick + 0.5, msg, target))
+            all_waves.append((tick + 1.0, msg, target))
+        offset = len(self._arrival_waves)
+        for wid, wave in enumerate(self._departure_waves):
+            tick = float(wave.get("tick", 0))
+            zone = wave["zone"]
+            count = int(wave.get("count", 0))
+            target = self._zone_agents.get(zone)
+            msg = f"departure:{zone}:{count}:w{offset + wid}".encode()
+            all_waves.append((tick, msg, target))
+            all_waves.append((tick + 0.5, msg, target))
+            all_waves.append((tick + 1.0, msg, target))
+        for wave in self._flood_waves:
+            tick = float(wave.get("tick", 0))
+            level = int(wave.get("level_cm", 0))
+            # Flood level updates are idempotent (no dedup needed)
+            flood_msg = f"water_level_update:godavari:{level}".encode()
+            for offset_f in (0.0, 0.5, 1.0):
+                all_waves.append((tick + offset_f, flood_msg, self._flood_watch_id))
+
+        for idx, (tick, payload, target) in enumerate(all_waves):
+            delay = max(0.0, tick - ctx.time)
+            await ctx.schedule(delay, f"wave:{idx}".encode())
+        self._scheduled_waves = all_waves
+
+    async def on_message(self, ctx: AgentContext, sender: AgentId, payload: bytes) -> None:
+        if payload.startswith(b"wave:"):
+            try:
+                idx = int(payload[5:])
+                _tick, inner, target = self._scheduled_waves[idx]
+            except (ValueError, IndexError):
+                return
+            if target:
+                await ctx.send(target, inner)
+            else:
+                await ctx.broadcast(inner)
+
+
 # ---------------------------------------------------------------------------
 # Scenario factories
 # ---------------------------------------------------------------------------
@@ -286,51 +463,49 @@ class NDRFAgent(StateMachineAgent):
 
 def _build_zone_agents(
     config: ScenarioConfig,
-) -> tuple[dict[AgentId, Any], int, int]:
-    """Build zone and ambulance agents from scenario config zones."""
+) -> tuple[dict[AgentId, Any], dict[str, AgentId]]:
+    """Build zone agents from scenario config zones.
+
+    Returns agents dict and zone_id→AgentId mapping for the SimDriver.
+    """
     task_cfg = config.task.config or {}
     zones: list[dict[str, Any]] = task_cfg.get("zones", [])
-    arrival_waves: list[dict[str, Any]] = task_cfg.get("arrival_waves", [])
-
-    # Map zone_id → initial count from first arrival wave
-    zone_counts: dict[str, int] = {}
-    for wave in arrival_waves:
-        zid = wave.get("zone", "")
-        zone_counts[zid] = zone_counts.get(zid, 0) + wave.get("count", 0)
 
     agents: dict[AgentId, Any] = {}
-    zone_idx = 0
-    for z in zones:
+    zone_map: dict[str, AgentId] = {}
+    for zone_idx, z in enumerate(zones):
         aid = AgentId(f"zone-agent-{zone_idx}")
         agents[aid] = ZoneAgent(
             agent_id=aid,
             zone_id=z["id"],
             capacity=z.get("capacity", 5000),
             density=0.0,
-            count=zone_counts.get(z["id"], 0),
+            count=z.get("initial_count", 0),
             hard_cap=z.get("hard_cap", False),
             city=z.get("city", "nashik"),
         )
-        zone_idx += 1
+        zone_map[z["id"]] = aid
 
-    return agents, zone_idx, len(zones)
+    return agents, zone_map
 
 
 def kumbh_peak_bathing_factory(
     config: ScenarioConfig, plugins: dict[str, Any]
 ) -> dict[AgentId, Any]:
-    """Build 118-agent peak-bathing-day fleet.
+    """Build peak-bathing-day fleet with a simulation driver for crowd dynamics.
 
-    Roles: 12 zone agents, 5 ambulance agents, 100 pilgrim agents, 1 command bridge.
+    Roles: 12 zone agents, 5 ambulance agents, 100 pilgrim agents,
+    1 command bridge, 1 simulation driver.
 
     Example::
 
         agents = kumbh_peak_bathing_factory(config, plugins)
     """
     agents: dict[AgentId, Any] = {}
+    task_cfg = config.task.config or {}
 
-    # Zone agents from YAML config
-    zone_agents, zone_idx, n_zones = _build_zone_agents(config)
+    # Zone agents
+    zone_agents, zone_map = _build_zone_agents(config)
     agents.update(zone_agents)
 
     # Ambulance agents
@@ -350,7 +525,6 @@ def kumbh_peak_bathing_factory(
         if role.name == "pilgrim_agent":
             n_pilgrims = role.count
             break
-    task_cfg = config.task.config or {}
     zones = task_cfg.get("zones", [])
     for i in range(n_pilgrims):
         aid = AgentId(f"pilgrim-agent-{i}")
@@ -359,6 +533,12 @@ def kumbh_peak_bathing_factory(
 
     # Command bridge
     agents[AgentId("command-bridge-0")] = CommandBridgeAgent(AgentId("command-bridge-0"))
+
+    # Simulation driver: injects arrival/departure waves over time
+    arrival_waves: list[dict[str, Any]] = task_cfg.get("arrival_waves", [])
+    departure_waves: list[dict[str, Any]] = task_cfg.get("departure_waves", [])
+    drv_id = AgentId("sim-driver-0")
+    agents[drv_id] = SimDriverAgent(drv_id, arrival_waves, departure_waves, zone_map)
 
     # Inject per-agent KumbhZoneGossipRegistry instances
     agent_plugins: dict[AgentId, dict[str, Any]] = {
@@ -372,10 +552,10 @@ def kumbh_peak_bathing_factory(
 def kumbh_flood_surge_factory(
     config: ScenarioConfig, plugins: dict[str, Any]
 ) -> dict[AgentId, Any]:
-    """Build 25-agent flood-surge fleet.
+    """Build flood-surge fleet with rising water level and crowd dynamics.
 
-    Roles: 12 zone agents, 5 ambulances, FloodWatch, CrowdSentinel,
-    MedEvac, CommandBridge (isolated), NDRF, 3 pilgrims.
+    Roles: 12 zone agents, 5 ambulances, FloodWatch (rising level),
+    CrowdSentinel, MedEvac, CommandBridge, NDRF, 3 pilgrims, SimDriver.
 
     Example::
 
@@ -384,16 +564,18 @@ def kumbh_flood_surge_factory(
     agents: dict[AgentId, Any] = {}
     task_cfg = config.task.config or {}
 
-    # 12 zone agents with flood-aware initial counts
     surge_zone = task_cfg.get("surge_zone", "ramkund_main")
     surge_count = task_cfg.get("surge_count", 7500)
-    for i in range(12):
+
+    zone_names = [
+        "ramkund_main", "ramkund_west", "godavari_ghat_1", "godavari_ghat_2",
+        "panchavati_main", "tapovan_ghat", "dudhsagar_ghat", "saraswati_kund",
+        "kushavart_kund", "kushavart_approach", "trimbakeshwar_main", "brahmagiri_ghat",
+    ]
+    zone_map: dict[str, AgentId] = {}
+    for i, zone_id in enumerate(zone_names):
         aid = AgentId(f"zone-agent-{i}")
-        zone_id = [
-            "ramkund_main", "ramkund_west", "godavari_ghat_1", "godavari_ghat_2",
-            "panchavati_main", "tapovan_ghat", "dudhsagar_ghat", "saraswati_kund",
-            "kushavart_kund", "kushavart_approach", "trimbakeshwar_main", "brahmagiri_ghat",
-        ][i]
+        zone_map[zone_id] = aid
         agents[aid] = ZoneAgent(
             agent_id=aid,
             zone_id=zone_id,
@@ -409,11 +591,12 @@ def kumbh_flood_surge_factory(
         aid = AgentId(f"ambulance-agent-{i}")
         agents[aid] = AmbulanceAgent(aid, city="nashik" if i < 3 else "trimbakeshwar")
 
-    # Specialist agents
+    # FloodWatch with gradual water level rise
     agents[AgentId("flood-watch-agent-0")] = FloodWatchAgent(
         AgentId("flood-watch-agent-0"),
-        level_cm=task_cfg.get("godavari_level_cm", 850),
+        level_cm=task_cfg.get("godavari_level_cm", 820),
         threshold_cm=900,
+        rise_per_tick=task_cfg.get("godavari_rise_per_tick", 1.0),
     )
     agents[AgentId("crowd-sentinel-agent-0")] = CommandBridgeAgent(
         AgentId("crowd-sentinel-agent-0")
@@ -424,10 +607,21 @@ def kumbh_flood_surge_factory(
     agents[AgentId("command-bridge-0")] = CommandBridgeAgent(AgentId("command-bridge-0"))
     agents[AgentId("ndrf-agent-0")] = NDRFAgent(AgentId("ndrf-agent-0"))
 
-    # 3 pilgrims
+    # 3 pilgrims in the surge zone
     for i in range(3):
         aid = AgentId(f"pilgrim-agent-{i}")
         agents[aid] = PilgrimAgent(aid, zone_id=surge_zone)
+
+    # Simulation driver: drives arrival/departure waves AND flood level updates
+    arrival_waves: list[dict[str, Any]] = task_cfg.get("arrival_waves", [])
+    departure_waves: list[dict[str, Any]] = task_cfg.get("departure_waves", [])
+    flood_waves: list[dict[str, Any]] = task_cfg.get("flood_waves", [])
+    flood_watch_id = AgentId("flood-watch-agent-0")
+    drv_id = AgentId("sim-driver-0")
+    agents[drv_id] = SimDriverAgent(
+        drv_id, arrival_waves, departure_waves, zone_map,
+        flood_watch_id=flood_watch_id, flood_waves=flood_waves,
+    )
 
     # Inject per-agent KumbhZoneGossipRegistry instances
     agent_plugins: dict[AgentId, dict[str, Any]] = {
