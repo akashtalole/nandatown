@@ -1,32 +1,40 @@
 # SPDX-License-Identifier: Apache-2.0
-# KumbhNet — Peak Bathing Day Scenario
+# KumbhNet — Peak Bathing Day Scenario (Simhastha 2027, Nashik)
 #
-# Simulates 12 zone agents + 5 ambulance agents + 100 pilgrim agents during
-# the Simhastha 2027 peak bathing window (Shahi Snan) under:
+# Simulates 12 zone agents + 5 ambulance agents + 100 pilgrim agents +
+# 1 command bridge + 1 simulation driver across a 12-hour bathing window.
+#
+# Crowd dynamics are driven by realistic Kumbh Mela arrival patterns:
+#   - Pre-dawn surge (ticks 0-60):   pilgrims arrive at riverside ghats
+#   - Peak saturation (ticks 90-180): Ramkund and Kushavart hit capacity
+#   - Cascade overflow (ticks 180-360): pilgrims redirect to secondary zones
+#   - Afternoon dispersal (ticks 360-600): gradual departure waves
+#   - Evening tail (ticks 600-720): crowd normalises
+#
+# Correlational signals in the trace:
+#   density:   time-series crowd density per zone
+#   alert:     triggered when density > 6.5 p/sqm or Kushavart > 1900
+#   close:     zone closure events correlated with preceding density spikes
+#   sos:       pilgrim distress signals correlated with density > 7.0
+#   dispatch:  ambulance dispatch correlated with sos events
+#   evacuation: NDRF evacuation orders correlated with flood/surge alerts
+#
+# Failure conditions:
 #   - 30% message drop (monsoon / cell tower congestion)
 #   - 15% Byzantine agents (2 zone sensors reporting false counts)
-#   - Network partition isolating Nashik ghats from Trimbakeshwar
-#
-# Safety properties checked by validators:
-#   1. Kushavart Kund never exceeds 1,900 persons without a hold being issued.
-#   2. No zone closes without BFT quorum ≥ 8/12 zone agent votes.
-#   3. Pilgrim medical attributes must not appear in non-medical agent traces.
-#   4. Content-addressed crowd snapshots must have valid CIDs.
-#
-# Seed: 20270729 — Simhastha 2027 peak bathing day date.
-# Same seed → byte-identical trace every run.
+#   - Network partition: Nashik ghats vs Trimbakeshwar ghats
 
 name: kumbh_peak_bathing
 description: >
-  Nashik Kumbh Mela 2027 peak bathing day simulation.
-  12 zone agents, 5 ambulances, 100 pilgrims.
-  30% message drop + Byzantine zone sensors + Nashik/Trimbakeshwar partition.
+  Nashik Kumbh Mela 2027 — 12-hour Shahi Snan (peak bathing) simulation.
+  Realistic crowd surge dynamics with cascade overflow, SOS signals,
+  ambulance dispatch, and monsoon network failures.
 
 tier: 1
 seed: 20270729
 
 agents:
-  count: 118
+  count: 119
   brain: state-machine
   roles:
     - name: zone_agent
@@ -37,95 +45,274 @@ agents:
       count: 100
     - name: command_bridge
       count: 1
+    - name: sim_driver
+      count: 1
 
 layers:
   transport: in_memory
   comms: nest_native
   identity: did_key
-  registry: gossip                    # monsoon-resilient gossip discovery
-  auth: jwt                           # base JWT; delegation handled by kumbh2027 auth plugin
+  registry: gossip
+  auth: jwt
   trust: score_average
   payments: prepaid_credits
-  coordination: contract_net          # zone agents override with kumbh_bft_coordination
+  coordination: contract_net
   negotiation: alternating_offers
   memory: blackboard
-  privacy: noop                       # selective disclosure handled by kumbh2027 privacy plugin
-  datafacts: datafacts_v1             # crowd snapshots override with crowd_density_datafacts
+  privacy: noop
+  datafacts: datafacts_v1
 
 task:
   type: kumbh_peak_bathing
   config:
+    # ---------------------------------------------------------------
     # Zone configuration (12 zones: 8 Nashik, 4 Trimbakeshwar)
+    # initial_count: pilgrims already present at simulation start (03:00 IST)
+    # ---------------------------------------------------------------
     zones:
+      # Density = initial_count * 8.0 / capacity
+      # Alert threshold: density > 6.5  (>81% capacity)
+      # SOS threshold:   density > 7.0  (>87.5% capacity)
+      # Hard cap: count > 1900 (kushavart only)
+
       - id: kushavart_kund
         city: trimbakeshwar
         capacity: 1900
         area_sqm: 800
         hard_cap: true
+        initial_count: 1200      # density=5.05 at start; waves push it over 1900
+
       - id: ramkund_main
         city: nashik
         capacity: 8000
         area_sqm: 2200
+        initial_count: 5500      # density=5.50; peaks at 7.70 after waves (t=90+)
+
       - id: ramkund_west
         city: nashik
         capacity: 5000
         area_sqm: 1500
+        initial_count: 3000      # density=4.80; moderate start
+
       - id: saraswati_kund
         city: nashik
         capacity: 3000
         area_sqm: 900
+        initial_count: 800
+
       - id: godavari_ghat_1
         city: nashik
         capacity: 6000
         area_sqm: 1800
+        initial_count: 4200      # density=5.60; close to threshold
+
       - id: godavari_ghat_2
         city: nashik
         capacity: 6000
         area_sqm: 1800
+        initial_count: 3800      # density=5.07
+
       - id: panchavati_main
         city: nashik
         capacity: 4000
         area_sqm: 1200
+        initial_count: 1800
+
       - id: tapovan_ghat
         city: nashik
         capacity: 3500
         area_sqm: 1050
+        initial_count: 900
+
       - id: dudhsagar_ghat
         city: nashik
         capacity: 2500
         area_sqm: 750
+        initial_count: 500
+
       - id: kushavart_approach
         city: trimbakeshwar
         capacity: 5000
         area_sqm: 1500
+        initial_count: 1500
+
       - id: trimbakeshwar_main
         city: trimbakeshwar
         capacity: 4000
         area_sqm: 1200
+        initial_count: 1800
+
       - id: brahmagiri_ghat
         city: trimbakeshwar
         capacity: 3000
         area_sqm: 900
+        initial_count: 800
 
-    # Simulated peak: pilgrims arrive in waves
+    # ---------------------------------------------------------------
+    # Arrival waves — realistic Kumbh crowd surge patterns
+    # Tick = minutes since 03:00 IST (so tick 90 = 04:30 IST)
+    # ---------------------------------------------------------------
     arrival_waves:
-      - tick: 0
+      # Pre-dawn rush (04:00-05:30 IST = ticks 15-90)
+      - tick: 15
         zone: ramkund_main
-        count: 6500          # approaching RED threshold
-      - tick: 5
-        zone: kushavart_kund
-        count: 1950          # exceeds hard cap → immediate hold
-      - tick: 10
+        count: 1500
+      - tick: 20
         zone: godavari_ghat_1
-        count: 5800
+        count: 1200
+      - tick: 30
+        zone: kushavart_kund
+        count: 600           # 400+600=1000, approaching 1900 cap
+      - tick: 40
+        zone: ramkund_west
+        count: 900
+      - tick: 45
+        zone: godavari_ghat_2
+        count: 1100
 
-    # Bathing window (logical ticks = minutes)
-    bathing_window_start: 0
-    bathing_window_end: 720          # 12 hours
+      # Peak saturation — Shahi Snan muhurta window (05:30-07:30 = ticks 90-210)
+      - tick: 90
+        zone: ramkund_main
+        count: 2000          # 3200+1500+2000=6700, density=3.05 p/sqm
+      - tick: 95
+        zone: kushavart_kund
+        count: 550           # 1000+550=1550
+      - tick: 100
+        zone: godavari_ghat_1
+        count: 1500          # 2400+1200+1500=5100
+      - tick: 110
+        zone: ramkund_west
+        count: 1200          # 1800+900+1200=3900
+      - tick: 115
+        zone: ramkund_main
+        count: 1000          # 6700+1000=7700, density=3.50
+      - tick: 120
+        zone: kushavart_kund
+        count: 420           # 1550+420=1970 → HARD CAP BREACH triggers close
+      - tick: 130
+        zone: panchavati_main
+        count: 1100          # 1200+1100=2300
+      - tick: 140
+        zone: saraswati_kund
+        count: 1400          # 600+1400=2000
+      - tick: 150
+        zone: godavari_ghat_2
+        count: 1600          # 2100+1100+1600=4800
+      - tick: 160
+        zone: ramkund_main
+        count: 500           # 7700+500=8200, OVER CAPACITY → density alert
+      - tick: 170
+        zone: godavari_ghat_1
+        count: 1000          # 5100+1000=6100, density=3.39
+
+      # Cascade overflow — pilgrims turned away from saturated zones (ticks 210-360)
+      - tick: 210
+        zone: tapovan_ghat
+        count: 1800          # 700+1800=2500, ramkund overflow
+      - tick: 220
+        zone: dudhsagar_ghat
+        count: 1400          # 400+1400=1800
+      - tick: 230
+        zone: brahmagiri_ghat
+        count: 1200          # 500+1200=1700
+      - tick: 250
+        zone: trimbakeshwar_main
+        count: 1500          # 1100+1500=2600
+      - tick: 270
+        zone: kushavart_approach
+        count: 1000          # 900+1000=1900, approaching capacity
+      - tick: 280
+        zone: tapovan_ghat
+        count: 900           # 2500+900=3400, approaching 3500 cap
+      - tick: 300
+        zone: dudhsagar_ghat
+        count: 500           # 1800+500=2300, past safe density
+      - tick: 320
+        zone: saraswati_kund
+        count: 800           # 2000+800=2800, near capacity
+
+      # Late arrivals — outlying villages (ticks 360-480)
+      - tick: 360
+        zone: dudhsagar_ghat
+        count: 200
+      - tick: 380
+        zone: brahmagiri_ghat
+        count: 350
+      - tick: 420
+        zone: trimbakeshwar_main
+        count: 400
+      - tick: 450
+        zone: tapovan_ghat
+        count: 200
+
+    # ---------------------------------------------------------------
+    # Departure waves — post-bathing dispersal
+    # ---------------------------------------------------------------
+    departure_waves:
+      - tick: 300
+        zone: ramkund_main
+        count: 2500
+      - tick: 320
+        zone: godavari_ghat_1
+        count: 2000
+      - tick: 340
+        zone: godavari_ghat_2
+        count: 1800
+      - tick: 360
+        zone: panchavati_main
+        count: 1200
+      - tick: 380
+        zone: tapovan_ghat
+        count: 1500
+      - tick: 400
+        zone: ramkund_west
+        count: 1800
+      - tick: 420
+        zone: saraswati_kund
+        count: 1000
+      - tick: 440
+        zone: ramkund_main
+        count: 2000
+      - tick: 460
+        zone: godavari_ghat_1
+        count: 1500
+      - tick: 480
+        zone: kushavart_approach
+        count: 800
+      - tick: 500
+        zone: trimbakeshwar_main
+        count: 1500
+      - tick: 520
+        zone: dudhsagar_ghat
+        count: 1200
+      - tick: 540
+        zone: brahmagiri_ghat
+        count: 1000
+      - tick: 560
+        zone: trimbakeshwar_main
+        count: 800
+      - tick: 580
+        zone: tapovan_ghat
+        count: 600
+      - tick: 600
+        zone: ramkund_main
+        count: 1500
+      - tick: 620
+        zone: godavari_ghat_2
+        count: 1200
+      - tick: 640
+        zone: saraswati_kund
+        count: 600
+      - tick: 660
+        zone: panchavati_main
+        count: 500
+      - tick: 680
+        zone: kushavart_approach
+        count: 400
 
 failures:
-  message_drop: 0.30                 # 30% monsoon packet loss
-  byzantine_agents: 0.15             # ~2 zone sensors report false density
+  message_drop: 0.30
+  byzantine_agents: 0.15
   network_partition:
     groups:
       - ["zone-agent-0", "zone-agent-1", "zone-agent-2",
@@ -135,7 +322,7 @@ failures:
       - ["zone-agent-8", "zone-agent-9", "zone-agent-10",
          "zone-agent-11", "ambulance-agent-3", "ambulance-agent-4"]
 
-duration: "ticks: 720"
+duration: "ticks: 500000"
 
 metrics:
   - success_rate
