@@ -19,6 +19,7 @@ from nest_core.scenario import ScenarioConfig
 from nest_core.scenarios import register_scenario
 from nest_core.sim.agent import AgentContext, StateMachineAgent
 from nest_core.types import AgentCard, AgentId, Query
+
 from nest_plugins_reference.kumbh2027.zone_registry_gossip import KumbhZoneGossipRegistry
 
 # Periodic density re-broadcast interval (ticks)
@@ -69,6 +70,10 @@ class ZoneAgent(StateMachineAgent):
         # Adjacent zone_id → AgentId mapping for panic overflow routing
         self._adjacent: dict[str, AgentId] = {}
 
+    def set_adjacent(self, adjacent: dict[str, AgentId]) -> None:
+        """Wire adjacent zones for panic overflow routing after construction."""
+        self._adjacent = adjacent
+
     def _recompute_density(self) -> None:
         # Normalize to [0, 8.0] scale: density=8.0 at full capacity.
         # Threshold 6.5 ≈ 81% capacity; SOS threshold 7.0 ≈ 87.5% capacity.
@@ -91,9 +96,7 @@ class ZoneAgent(StateMachineAgent):
             await registry.register(card)
         self._recompute_density()
         # Announce initial density
-        await ctx.broadcast(
-            f"density:{self._zone_id}:{self._density:.2f}:{self._count}".encode()
-        )
+        await ctx.broadcast(f"density:{self._zone_id}:{self._density:.2f}:{self._count}".encode())
         # Arm first periodic re-broadcast tick
         await ctx.schedule(_DENSITY_TICK_INTERVAL, _ZONE_TICK)
 
@@ -136,9 +139,7 @@ class ZoneAgent(StateMachineAgent):
                     await ctx.broadcast(
                         f"crush:{self._zone_id}:{self._density:.2f}:{self._count}".encode()
                     )
-                    await ctx.broadcast(
-                        f"casualty:{self._zone_id}:{casualties}".encode()
-                    )
+                    await ctx.broadcast(f"casualty:{self._zone_id}:{casualties}".encode())
                     # Panic overflow: push 20% of crowd into each adjacent zone
                     overflow = max(100, self._count // 5)
                     for adj_zone, adj_aid in self._adjacent.items():
@@ -218,9 +219,7 @@ class AmbulanceAgent(StateMachineAgent):
             if "stampede" in msg:
                 parts = msg.split(":")
                 zone = parts[2] if len(parts) >= 3 else "unknown"
-                await ctx.broadcast(
-                    f"en_route:{self._id}:{zone}:{self._city}".encode()
-                )
+                await ctx.broadcast(f"en_route:{self._id}:{zone}:{self._city}".encode())
 
 
 class PilgrimAgent(StateMachineAgent):
@@ -231,7 +230,12 @@ class PilgrimAgent(StateMachineAgent):
         agent = PilgrimAgent(AgentId("pilgrim-agent-0"), zone_id="ramkund_main")
     """
 
-    def __init__(self, agent_id: AgentId, zone_id: str = "ramkund_main", family_id: str = "family-0") -> None:
+    def __init__(
+        self,
+        agent_id: AgentId,
+        zone_id: str = "ramkund_main",
+        family_id: str = "family-0",
+    ) -> None:
         self._id = agent_id
         self._zone_id = zone_id
         self._family_id = family_id
@@ -327,7 +331,8 @@ class CommandBridgeAgent(StateMachineAgent):
                 if density > 6.5 or (zone_id == "kushavart_kund" and count > 1900):
                     alert = f"ALERT:{zone_id}:density={density:.2f}:count={count}:t={ctx.time:.0f}"
                     self._alerts.append(alert)
-                    await ctx.broadcast(f"alert:{zone_id}:{density:.2f}:{count}:{ctx.time:.0f}".encode())
+                    msg_alert = f"alert:{zone_id}:{density:.2f}:{count}:{ctx.time:.0f}"
+                    await ctx.broadcast(msg_alert.encode())
                     if zone_id not in self._closures:
                         await ctx.broadcast(f"close:{zone_id}:command".encode())
                         self._closures.append(zone_id)
@@ -357,9 +362,7 @@ class CommandBridgeAgent(StateMachineAgent):
             zone = parts[1] if len(parts) >= 2 else "unknown"
             if zone not in self._stampede_zones:
                 self._stampede_zones.add(zone)
-                await ctx.broadcast(
-                    f"stampede_alert:{zone}:{ctx.time:.0f}".encode()
-                )
+                await ctx.broadcast(f"stampede_alert:{zone}:{ctx.time:.0f}".encode())
                 await ctx.broadcast(f"crowd_control:{zone}:disperse".encode())
                 # Dispatch ALL ambulances to stampede zone
                 for amb_id in self._ambulance_ids:
@@ -399,12 +402,14 @@ class FloodWatchAgent(StateMachineAgent):
     async def on_start(self, ctx: AgentContext) -> None:
         registry = ctx.plugins.get("registry")
         if registry:
-            await registry.register(AgentCard(
-                agent_id=self._id,
-                name="FloodWatch",
-                capabilities=["flood:monitor"],
-                metadata={"level_cm": str(int(self._level_cm))},
-            ))
+            await registry.register(
+                AgentCard(
+                    agent_id=self._id,
+                    name="FloodWatch",
+                    capabilities=["flood:monitor"],
+                    metadata={"level_cm": str(int(self._level_cm))},
+                )
+            )
         await ctx.broadcast(f"water_level:godavari:{self._level_cm:.0f}".encode())
         if self._level_cm >= self._threshold_cm and not self._alerted:
             self._alerted = True
@@ -448,12 +453,14 @@ class NDRFAgent(StateMachineAgent):
     async def on_start(self, ctx: AgentContext) -> None:
         registry = ctx.plugins.get("registry")
         if registry:
-            await registry.register(AgentCard(
-                agent_id=self._id,
-                name="NDRF",
-                capabilities=["zone:close", "evacuation:order"],
-                metadata={"role": "ndrf"},
-            ))
+            await registry.register(
+                AgentCard(
+                    agent_id=self._id,
+                    name="NDRF",
+                    capabilities=["zone:close", "evacuation:order"],
+                    metadata={"role": "ndrf"},
+                )
+            )
 
     async def on_message(self, ctx: AgentContext, sender: AgentId, payload: bytes) -> None:
         msg = payload.decode("utf-8", errors="replace")
@@ -495,12 +502,14 @@ class LostAndFoundAgent(StateMachineAgent):
     async def on_start(self, ctx: AgentContext) -> None:
         registry = ctx.plugins.get("registry")
         if registry:
-            await registry.register(AgentCard(
-                agent_id=self._id,
-                name="LostAndFound",
-                capabilities=["lost:register", "lost:search"],
-                metadata={"role": "lost_and_found"},
-            ))
+            await registry.register(
+                AgentCard(
+                    agent_id=self._id,
+                    name="LostAndFound",
+                    capabilities=["lost:register", "lost:search"],
+                    metadata={"role": "lost_and_found"},
+                )
+            )
 
     async def on_message(self, ctx: AgentContext, sender: AgentId, payload: bytes) -> None:
         msg = payload.decode("utf-8", errors="replace")
@@ -510,7 +519,9 @@ class LostAndFoundAgent(StateMachineAgent):
                 pilgrim_id, family_id, zone_id = parts[1], parts[2], parts[3]
                 if pilgrim_id not in self._lost:
                     self._lost[pilgrim_id] = {
-                        "family_id": family_id, "zone_id": zone_id, "t": ctx.time
+                        "family_id": family_id,
+                        "zone_id": zone_id,
+                        "t": ctx.time,
                     }
                     self._family_index.setdefault(family_id, []).append(pilgrim_id)
                     await ctx.broadcast(
@@ -543,7 +554,9 @@ class HospitalAgent(StateMachineAgent):
         agent = HospitalAgent(AgentId("hospital-0"), capacity=150, name="Civil Hospital Nashik")
     """
 
-    def __init__(self, agent_id: AgentId, capacity: int = 150, name: str = "Civil Hospital") -> None:
+    def __init__(
+        self, agent_id: AgentId, capacity: int = 150, name: str = "Civil Hospital"
+    ) -> None:
         self._id = agent_id
         self._capacity = capacity
         self._name = name
@@ -553,15 +566,15 @@ class HospitalAgent(StateMachineAgent):
     async def on_start(self, ctx: AgentContext) -> None:
         registry = ctx.plugins.get("registry")
         if registry:
-            await registry.register(AgentCard(
-                agent_id=self._id,
-                name=self._name,
-                capabilities=["hospital:admit", "hospital:status"],
-                metadata={"capacity": str(self._capacity), "role": "hospital"},
-            ))
-        await ctx.broadcast(
-            f"hospital_ready:{self._id}:{self._capacity}".encode()
-        )
+            await registry.register(
+                AgentCard(
+                    agent_id=self._id,
+                    name=self._name,
+                    capabilities=["hospital:admit", "hospital:status"],
+                    metadata={"capacity": str(self._capacity), "role": "hospital"},
+                )
+            )
+        await ctx.broadcast(f"hospital_ready:{self._id}:{self._capacity}".encode())
 
     async def on_message(self, ctx: AgentContext, sender: AgentId, payload: bytes) -> None:
         msg = payload.decode("utf-8", errors="replace")
@@ -585,9 +598,7 @@ class HospitalAgent(StateMachineAgent):
                 )
 
         elif msg.startswith("en_route:"):
-            # Ambulance en route — acknowledge
-            parts = msg.split(":")
-            ambulance_id = parts[1] if len(parts) >= 2 else "unknown"
+            # Ambulance en route — send hospital directions back
             await ctx.send(
                 sender,
                 f"hospital_directions:{self._id}:{self._admitted}/{self._capacity}".encode(),
@@ -612,12 +623,14 @@ class CrowdControlAgent(StateMachineAgent):
     async def on_start(self, ctx: AgentContext) -> None:
         registry = ctx.plugins.get("registry")
         if registry:
-            await registry.register(AgentCard(
-                agent_id=self._id,
-                name=f"CrowdControl-{self._sector}",
-                capabilities=["crowd:cordon", "crowd:disperse"],
-                metadata={"sector": self._sector, "role": "crowd_control"},
-            ))
+            await registry.register(
+                AgentCard(
+                    agent_id=self._id,
+                    name=f"CrowdControl-{self._sector}",
+                    capabilities=["crowd:cordon", "crowd:disperse"],
+                    metadata={"sector": self._sector, "role": "crowd_control"},
+                )
+            )
 
     async def on_message(self, ctx: AgentContext, sender: AgentId, payload: bytes) -> None:
         msg = payload.decode("utf-8", errors="replace")
@@ -700,7 +713,7 @@ class SimDriverAgent(StateMachineAgent):
             for offset_f in (0.0, 0.5, 1.0):
                 all_waves.append((tick + offset_f, flood_msg, self._flood_watch_id))
 
-        for idx, (tick, payload, target) in enumerate(all_waves):
+        for idx, (tick, _payload, _target) in enumerate(all_waves):
             delay = max(0.0, tick - ctx.time)
             await ctx.schedule(delay, f"wave:{idx}".encode())
         self._scheduled_waves = all_waves
@@ -830,9 +843,18 @@ def kumbh_flood_surge_factory(
     surge_count = task_cfg.get("surge_count", 7500)
 
     zone_names = [
-        "ramkund_main", "ramkund_west", "godavari_ghat_1", "godavari_ghat_2",
-        "panchavati_main", "tapovan_ghat", "dudhsagar_ghat", "saraswati_kund",
-        "kushavart_kund", "kushavart_approach", "trimbakeshwar_main", "brahmagiri_ghat",
+        "ramkund_main",
+        "ramkund_west",
+        "godavari_ghat_1",
+        "godavari_ghat_2",
+        "panchavati_main",
+        "tapovan_ghat",
+        "dudhsagar_ghat",
+        "saraswati_kund",
+        "kushavart_kund",
+        "kushavart_approach",
+        "trimbakeshwar_main",
+        "brahmagiri_ghat",
     ]
     zone_map: dict[str, AgentId] = {}
     for i, zone_id in enumerate(zone_names):
@@ -844,8 +866,9 @@ def kumbh_flood_surge_factory(
             capacity=8000,
             count=surge_count if zone_id == surge_zone else 1000,
             hard_cap=(zone_id == "kushavart_kund"),
-            city="trimbakeshwar" if "trimbakeshwar" in zone_id or "kushavart" in zone_id
-                 else "nashik",
+            city="trimbakeshwar"
+            if "trimbakeshwar" in zone_id or "kushavart" in zone_id
+            else "nashik",
         )
 
     # 5 ambulances
@@ -863,9 +886,7 @@ def kumbh_flood_surge_factory(
     agents[AgentId("crowd-sentinel-agent-0")] = CommandBridgeAgent(
         AgentId("crowd-sentinel-agent-0")
     )
-    agents[AgentId("med-evac-agent-0")] = AmbulanceAgent(
-        AgentId("med-evac-agent-0"), city="nashik"
-    )
+    agents[AgentId("med-evac-agent-0")] = AmbulanceAgent(AgentId("med-evac-agent-0"), city="nashik")
     agents[AgentId("command-bridge-0")] = CommandBridgeAgent(AgentId("command-bridge-0"))
     agents[AgentId("ndrf-agent-0")] = NDRFAgent(AgentId("ndrf-agent-0"))
 
@@ -881,8 +902,12 @@ def kumbh_flood_surge_factory(
     flood_watch_id = AgentId("flood-watch-agent-0")
     drv_id = AgentId("sim-driver-0")
     agents[drv_id] = SimDriverAgent(
-        drv_id, arrival_waves, departure_waves, zone_map,
-        flood_watch_id=flood_watch_id, flood_waves=flood_waves,
+        drv_id,
+        arrival_waves,
+        departure_waves,
+        zone_map,
+        flood_watch_id=flood_watch_id,
+        flood_waves=flood_waves,
     )
 
     # Inject per-agent KumbhZoneGossipRegistry instances
@@ -898,9 +923,8 @@ def kumbh_flood_surge_factory(
 # Auto-register on import
 # ---------------------------------------------------------------------------
 
-def kumbh_stampede_factory(
-    config: ScenarioConfig, plugins: dict[str, Any]
-) -> dict[AgentId, Any]:
+
+def kumbh_stampede_factory(config: ScenarioConfig, plugins: dict[str, Any]) -> dict[AgentId, Any]:
     """Build stampede simulation fleet.
 
     Roles: 12 zone agents (high initial density), 8 ambulances,
@@ -937,9 +961,7 @@ def kumbh_stampede_factory(
     for zone_id, neighbours in adjacency.items():
         src_aid = zone_map.get(zone_id)
         if src_aid and src_aid in zone_agents:
-            zone_agents[src_aid]._adjacent = {
-                n: zone_map[n] for n in neighbours if n in zone_map
-            }
+            zone_agents[src_aid].set_adjacent({n: zone_map[n] for n in neighbours if n in zone_map})
 
     # ── Ambulances ─────────────────────────────────────────────────────
     n_ambulances: int = next(
@@ -952,9 +974,7 @@ def kumbh_stampede_factory(
         ambulance_ids.append(aid)
 
     # ── Pilgrims in family groups ───────────────────────────────────────
-    n_pilgrims: int = next(
-        (r.count for r in config.agents.roles if r.name == "pilgrim_agent"), 50
-    )
+    n_pilgrims: int = next((r.count for r in config.agents.roles if r.name == "pilgrim_agent"), 50)
     zones_list = [z["id"] for z in zone_cfgs]
     # Distribute pilgrims with family groups of 3
     for i in range(n_pilgrims):
@@ -968,13 +988,18 @@ def kumbh_stampede_factory(
     agents[lnf_id] = LostAndFoundAgent(lnf_id)
 
     # ── Hospitals ──────────────────────────────────────────────────────
-    hospitals: list[dict[str, Any]] = task_cfg.get("hospitals", [
-        {"name": "Civil Hospital Nashik", "capacity": 150},
-        {"name": "Wockhardt Hospital",    "capacity": 80},
-    ])
+    hospitals: list[dict[str, Any]] = task_cfg.get(
+        "hospitals",
+        [
+            {"name": "Civil Hospital Nashik", "capacity": 150},
+            {"name": "Wockhardt Hospital", "capacity": 80},
+        ],
+    )
     for i, h in enumerate(hospitals):
         hid = AgentId(f"hospital-agent-{i}")
-        agents[hid] = HospitalAgent(hid, capacity=h.get("capacity", 100), name=h.get("name", f"Hospital-{i}"))
+        agents[hid] = HospitalAgent(
+            hid, capacity=h.get("capacity", 100), name=h.get("name", f"Hospital-{i}")
+        )
 
     # ── Crowd Control (police) ──────────────────────────────────────────
     for i, sector in enumerate(["nashik-riverside", "nashik-inner"]):

@@ -47,7 +47,7 @@ Example::
 
 from __future__ import annotations
 
-import uuid
+import hashlib
 
 from nest_core.types import (
     AgentId,
@@ -110,7 +110,7 @@ class KumbhBFTCoordination:
             ))
         """
         return Round(
-            id=str(uuid.uuid4()),
+            id=hashlib.sha256(f"{task.id}:{task.description}".encode()).hexdigest()[:32],
             task=task,
             participants=[],
             metadata={"votes": [], "committed": False},

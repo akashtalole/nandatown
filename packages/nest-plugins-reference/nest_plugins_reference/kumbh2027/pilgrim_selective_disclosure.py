@@ -195,6 +195,7 @@ class PilgrimSelectiveDisclosure:
         profile: dict[str, str] = json.loads(profile_raw)
 
         predicate = statement.predicate
+        allowed: frozenset[str]
         if predicate.startswith("role_access:"):
             role = predicate[len("role_access:") :]
             allowed = ROLE_ATTRIBUTE_MAP.get(role, frozenset())
