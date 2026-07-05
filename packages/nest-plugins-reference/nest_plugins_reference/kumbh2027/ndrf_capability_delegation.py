@@ -69,9 +69,8 @@ import base64
 import hashlib
 import hmac
 import json
-import uuid
 
-from nest_core.types import AgentId, AuthContext, Token
+from nest_sdk import AgentId, AuthContext, Token
 
 _SECRET = b"ndrf-kumbh-2027"
 MAX_DEPTH = 3
@@ -153,6 +152,8 @@ class NDRFCapabilityDelegation:
         if "zone:close" in scopes:
             token_exp = min(token_exp, self._window_end)
 
+        _tid_src = f"{subject}:{sorted(scopes)}:{t}:{token_exp}:root"
+        _token_id = hashlib.sha256(_tid_src.encode()).hexdigest()[:32]
         payload: dict[str, object] = {
             "sub": str(subject),
             "scopes": sorted(scopes),
@@ -160,7 +161,7 @@ class NDRFCapabilityDelegation:
             "exp": token_exp,
             "delegated_by": None,
             "depth": 0,
-            "token_id": str(uuid.uuid4()),
+            "token_id": _token_id,
         }
         token = _encode_token(payload)
         self._issued[str(payload["token_id"])] = payload
@@ -218,7 +219,9 @@ class NDRFCapabilityDelegation:
             "exp": token_exp,
             "delegated_by": str(parent_payload["token_id"]),
             "depth": parent_depth + 1,
-            "token_id": str(uuid.uuid4()),
+            "token_id": hashlib.sha256(
+                f"{to}:{sorted(scopes)}:{t}:{token_exp}:{parent_payload['token_id']}".encode()
+            ).hexdigest()[:32],
         }
         token = _encode_token(payload)
         self._issued[str(payload["token_id"])] = payload

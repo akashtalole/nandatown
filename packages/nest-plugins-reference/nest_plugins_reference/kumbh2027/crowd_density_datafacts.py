@@ -50,7 +50,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from nest_core.types import AccessGrant, AgentId, DataFactsUrl, DatasetMetadata
+from nest_sdk import AccessGrant, AgentId, DataFactsUrl, DatasetMetadata
 
 # Roles allowed to see RED/BLACK zone snapshots.
 _ICCC_ROLES = frozenset({"iccc_operator", "police_coordinator", "ndrf", "org_admin", "super_admin"})

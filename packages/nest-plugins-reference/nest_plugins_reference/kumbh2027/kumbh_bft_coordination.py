@@ -32,7 +32,7 @@ calls.  Same trace → same outcome under any seed.
 
 Example::
 
-    from nest_core.types import AgentId, Task
+    from nest_sdk import AgentId, Task
     from nest_plugins_reference.kumbh2027.kumbh_bft_coordination import KumbhBFTCoordination
 
     coord = KumbhBFTCoordination(agent_id=AgentId("zone-ramkund"), zone_count=12)
@@ -47,9 +47,9 @@ Example::
 
 from __future__ import annotations
 
-import uuid
+import hashlib
 
-from nest_core.types import (
+from nest_sdk import (
     AgentId,
     Bid,
     Outcome,
@@ -110,7 +110,7 @@ class KumbhBFTCoordination:
             ))
         """
         return Round(
-            id=str(uuid.uuid4()),
+            id=hashlib.sha256(f"{task.id}:{task.description}".encode()).hexdigest()[:32],
             task=task,
             participants=[],
             metadata={"votes": [], "committed": False},

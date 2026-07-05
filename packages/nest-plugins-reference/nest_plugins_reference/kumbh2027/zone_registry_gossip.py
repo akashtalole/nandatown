@@ -48,7 +48,7 @@ deterministic round-robin over the sorted known-agent list, advanced by
 Example::
 
     from nest_plugins_reference.kumbh2027.zone_registry_gossip import KumbhZoneGossipRegistry
-    from nest_core.types import AgentCard, AgentId, Query
+    from nest_sdk import AgentCard, AgentId, Query
 
     reg = KumbhZoneGossipRegistry(agent_id=AgentId("zone-ramkund"), fanout=3)
     await reg.register(AgentCard(agent_id=AgentId("ambulance-0"), name="Ambulance-0",
@@ -61,11 +61,10 @@ Example::
 from __future__ import annotations
 
 import json
-from collections import defaultdict
 from collections.abc import AsyncIterator
 from typing import Any
 
-from nest_core.types import AgentCard, AgentId, Query
+from nest_sdk import AgentCard, AgentId, Query
 
 # Number of gossip ticks after which a card is considered stale.
 _STALE_TICKS = 10
@@ -186,8 +185,7 @@ class KumbhZoneGossipRegistry:
         results = [
             card
             for card, _tag, published_tick in self._store.values()
-            if self._matches(card, query)
-            and (self._tick - published_tick) <= self._staleness_ticks
+            if self._matches(card, query) and (self._tick - published_tick) <= self._staleness_ticks
         ]
         if results:
             return results
@@ -255,14 +253,16 @@ class KumbhZoneGossipRegistry:
             payload = reg.gossip_push()
             peer_reg.handle_gossip(payload)
         """
-        records = []
+        records: list[dict[str, object]] = []
         for agent_id, (card, tag, tick) in self._store.items():
-            records.append({
-                "agent_id": agent_id,
-                "card": card.model_dump(mode="json"),
-                "tag": tag.to_dict(),
-                "tick": tick,
-            })
+            records.append(
+                {
+                    "agent_id": agent_id,
+                    "card": card.model_dump(mode="json"),
+                    "tag": tag.to_dict(),
+                    "tick": tick,
+                }
+            )
         return json.dumps(records, sort_keys=True, separators=(",", ":")).encode()
 
     def handle_gossip(self, payload: bytes) -> int:
@@ -363,9 +363,8 @@ class KumbhZoneGossipRegistry:
 
     @staticmethod
     def _matches(card: AgentCard, query: Query) -> bool:
-        if query.capabilities:
-            if not all(c in card.capabilities for c in query.capabilities):
-                return False
+        if query.capabilities and not all(c in card.capabilities for c in query.capabilities):
+            return False
         if query.name_pattern and query.name_pattern not in card.name:
             return False
         if query.metadata_filter:
@@ -384,7 +383,4 @@ class KumbhZoneGossipRegistry:
 
     @staticmethod
     def _matches_city(card: AgentCard, city: str) -> bool:
-        return (
-            city in str(card.agent_id).lower()
-            or city in card.metadata.get("city", "").lower()
-        )
+        return city in str(card.agent_id).lower() or city in card.metadata.get("city", "").lower()
