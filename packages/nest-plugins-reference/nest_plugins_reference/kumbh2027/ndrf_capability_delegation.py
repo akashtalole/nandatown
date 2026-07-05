@@ -70,7 +70,7 @@ import hashlib
 import hmac
 import json
 
-from nest_core.types import AgentId, AuthContext, Token
+from nest_sdk import AgentId, AuthContext, Token
 
 _SECRET = b"ndrf-kumbh-2027"
 MAX_DEPTH = 3

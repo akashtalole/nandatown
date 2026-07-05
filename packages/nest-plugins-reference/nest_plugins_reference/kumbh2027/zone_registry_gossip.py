@@ -48,7 +48,7 @@ deterministic round-robin over the sorted known-agent list, advanced by
 Example::
 
     from nest_plugins_reference.kumbh2027.zone_registry_gossip import KumbhZoneGossipRegistry
-    from nest_core.types import AgentCard, AgentId, Query
+    from nest_sdk import AgentCard, AgentId, Query
 
     reg = KumbhZoneGossipRegistry(agent_id=AgentId("zone-ramkund"), fanout=3)
     await reg.register(AgentCard(agent_id=AgentId("ambulance-0"), name="Ambulance-0",
@@ -64,7 +64,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from nest_core.types import AgentCard, AgentId, Query
+from nest_sdk import AgentCard, AgentId, Query
 
 # Number of gossip ticks after which a card is considered stale.
 _STALE_TICKS = 10

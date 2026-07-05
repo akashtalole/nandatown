@@ -59,7 +59,7 @@ Example::
     profile = {"name": "Arjun Sharma", "cardiac_care": "true", "zone_id": "ramkund_main"}
     ct = await priv.encrypt(json.dumps(profile).encode(), [])
     # MedEvac proves it needs cardiac_care:
-    from nest_core.types import Statement, Witness
+    from nest_sdk import Statement, Witness
     stmt = Statement(predicate="role_access:medevac", public_inputs={})
     witness = Witness(private_inputs={"profile": json.dumps(profile)})
     proof = await priv.prove(stmt, witness)
@@ -73,7 +73,7 @@ import hashlib
 import hmac
 import json
 
-from nest_core.types import AgentId, Proof, Statement, Witness
+from nest_sdk import AgentId, Proof, Statement, Witness
 
 # Simulation root secret — deterministic, never changes between replays.
 _SIM_SECRET = b"kumbh-sim-2027"
